@@ -1,0 +1,30 @@
+/* A simple CSS reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #212529; /* A common dark gray for text */
+  line-height: 1.6;
+  background-color: #fff;
+}
+
+/* Container class for consistent horizontal padding/max-width */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Utility class for the main content area */
+.main-content {
+  min-height: calc(100vh - 80px); /* Adjust based on your header height */
+  padding: 2rem 0;
+}

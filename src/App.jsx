@@ -1,6 +1,7 @@
 import { BrowserRouter as Router } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { AuthProvider } from './contexts/AuthContext';
+import { TaskProgressProvider } from './contexts/TaskProgressContext';
 import { theme } from './styles/theme';
 import GlobalStyles from './styles/GlobalStyles';
 import AppLayout from './components/AppLayout';
@@ -10,9 +11,11 @@ function App() {
     <ThemeProvider theme={theme}>
       <GlobalStyles />
       <AuthProvider>
-        <Router>
-          <AppLayout />
-        </Router>
+        <TaskProgressProvider>
+          <Router>
+            <AppLayout />
+          </Router>
+        </TaskProgressProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -1,33 +1,51 @@
-// Generate a robust set of mock products
-export const generateProducts = () => {
-  const categories = ['Electronics', 'Clothing', 'Home & Kitchen', 'Books', 'Sports'];
-  const brands = ['Acme', 'Stark', 'Wayne', 'Oz', 'Wonka'];
+// Generate laptop products instead of generic ones
+const generateProducts = () => {
+  const brands = ['Dell', 'Lenovo', 'HP', 'Apple', 'Asus', 'Acer', 'MSI'];
+  const cpus = ['Intel i5', 'Intel i7', 'Intel i9', 'AMD Ryzen 5', 'AMD Ryzen 7', 'AMD Ryzen 9'];
+  const rams = ['8GB', '16GB', '32GB', '64GB'];
+  const storages = ['256GB SSD', '512GB SSD', '1TB SSD', '2TB SSD'];
+  const gpus = ['Integrated', 'NVIDIA GTX 1650', 'NVIDIA RTX 3050', 'NVIDIA RTX 4060', 'AMD Radeon RX 6600'];
   
-  return Array.from({ length: 30 }, (_, index) => {
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const price = parseFloat((Math.random() * 500 + 10).toFixed(2)); // $10 - $510
-    const rating = parseFloat((Math.random() * 3 + 2).toFixed(1)); // 2.0 - 5.0
+  return Array.from({ length: 25 }, (_, index) => {
+    const brand = brands[Math.floor(Math.random() * brands.length)];
+    const basePrice = Math.random() > 0.5 ? 600 + Math.random() * 1400 : 800 + Math.random() * 1200;
+    const price = parseFloat(basePrice.toFixed(2));
     
     return {
-      id: `prod_${index + 1}`,
-      name: `${brands[Math.floor(Math.random() * brands.length)]} ${category.substring(0, 4)}-${index + 100}`,
-      description: `High-quality ${category.toLowerCase()} product designed for modern needs. Features premium materials and excellent craftsmanship.`,
+      id: `laptop_${index + 1}`,
+      name: `${brand} ${cpus[Math.floor(Math.random() * cpus.length)]} Laptop`,
+      description: `High-performance ${brand} laptop with ${rams[Math.floor(Math.random() * rams.length)]} RAM and ${storages[Math.floor(Math.random() * storages.length)]} storage. Perfect for work and entertainment.`,
       price: price,
-      originalPrice: parseFloat((price * (1 + Math.random() * 0.3)).toFixed(2)), // Original price 0-30% higher
-      category: category,
-      rating: rating,
+      originalPrice: parseFloat((price * (1 + Math.random() * 0.3)).toFixed(2)),
+      brand: brand,
+      category: 'Laptops',
+      cpu: cpus[Math.floor(Math.random() * cpus.length)],
+      ram: rams[Math.floor(Math.random() * rams.length)],
+      storage: storages[Math.floor(Math.random() * storages.length)],
+      gpu: gpus[Math.floor(Math.random() * gpus.length)],
+      rating: parseFloat((Math.random() * 2 + 3).toFixed(1)), // 3.0 - 5.0
       reviewCount: Math.floor(Math.random() * 200),
-      imageUrl: `https://picsum.photos/300/200?random=${index}`, // Random image for each product
-      inStock: Math.random() > 0.1, // 90% chance in stock
-      featured: Math.random() > 0.7, // 30% chance featured
-      tags: ['new', 'sale', 'popular'].filter(() => Math.random() > 0.7)
+      imageUrl: `https://picsum.photos/300/200?random=${index + 100}`,
+      inStock: Math.random() > 0.2, // 80% chance in stock
+      screenSize: `${13 + Math.floor(Math.random() * 6)} inch` // 13-18 inch
     };
   });
 };
 
-export const products = generateProducts();
+// Create the products array
+const products = generateProducts();
 
-// Get unique categories for filters
-export const getUniqueCategories = () => {
-  return [...new Set(products.map(product => product.category))].sort();
+// Get unique brands for filters
+const getUniqueBrands = () => {
+  return [...new Set(products.map(product => product.brand))].sort();
 };
+
+// Get unique RAM options
+const getUniqueRAM = () => {
+  return [...new Set(products.map(product => product.ram))].sort((a, b) => 
+    parseInt(a) - parseInt(b)
+  );
+};
+
+// Export everything
+export { products, getUniqueBrands, getUniqueRAM };

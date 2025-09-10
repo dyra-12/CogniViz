@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Button from '../components/Button';
 import useLogger from '../hooks/useLogger';
+import { useTaskProgress } from '../contexts/TaskProgressContext'; // Add this import
 
 // Styled Components for the form
 const FormContainer = styled.div`
@@ -41,7 +42,7 @@ const Input = styled.input`
   &:focus {
     outline: none;
     border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 0 0 3px ${props => props.theme.colors.primary}20; // 20 is hex for 12% opacity
+    box-shadow: 0 0 0 3px ${props => props.theme.colors.primary}20;
   }
 
   &.error {
@@ -67,7 +68,7 @@ const ErrorText = styled.span`
 
 const SuccessMessage = styled.div`
   padding: ${props => props.theme.spacing[4]};
-  background-color: ${props => props.theme.colors.success}15; // Very light opacity
+  background-color: ${props => props.theme.colors.success}15;
   color: ${props => props.theme.colors.success};
   border-radius: ${props => props.theme.borderRadius.md};
   text-align: center;
@@ -88,6 +89,8 @@ const TwoColumnGrid = styled.div`
 // Main Component
 const Task1 = () => {
   const { log } = useLogger();
+  const { completeCurrentTask } = useTaskProgress(); // Add this hook
+
   const [formData, setFormData] = useState({
     fullName: '',
     addressLine1: '',
@@ -111,7 +114,6 @@ const Task1 = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Log field interaction, but debounce to avoid spamming
     if (isTouched[name]) {
       log('form_field_interaction', { fieldName: name, value, action: 'change' });
     }
@@ -121,7 +123,6 @@ const Task1 = () => {
     const { name, value } = e.target;
     setIsTouched(prev => ({ ...prev, [name]: true }));
     
-    // Validate single field and log the interaction
     validateField(name, value);
     log('form_field_interaction', { fieldName: name, value, action: 'blur' });
   };
@@ -178,15 +179,12 @@ const Task1 = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Log submit attempt
     log('form_submit_attempt', { formData });
 
     if (validateForm()) {
-      // Simulate API call
       setTimeout(() => {
         log('form_submit_success', { formData });
         setIsSubmitted(true);
-        // Reset form after success
         setFormData({
           fullName: '',
           addressLine1: '',
@@ -212,10 +210,12 @@ const Task1 = () => {
           <h3>✅ Success!</h3>
           <p>Your shipping information has been submitted successfully.</p>
           <Button 
-            onClick={() => setIsSubmitted(false)}
+            onClick={() => {
+              completeCurrentTask(); // This moves to next task
+            }}
             style={{ marginTop: '1rem' }}
           >
-            Submit Another Address
+            Continue to Next Task
           </Button>
         </SuccessMessage>
       </FormContainer>

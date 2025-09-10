@@ -107,7 +107,8 @@ const Filters = ({
   filters, 
   onFilterChange, 
   onClearFilters,
-  categories 
+  brands,
+  rams 
 }) => {
   return (
     <FiltersContainer>
@@ -118,38 +119,38 @@ const Filters = ({
         </ClearButton>
       </FilterTitle>
 
-      {/* Category Filter */}
-      <FilterGroup>
-        <FilterLabel>Category</FilterLabel>
-        <CheckboxContainer>
-          {categories.map(category => (
-            <CheckboxLabel key={category}>
-              <CheckboxInput
-                type="checkbox"
-                checked={filters.categories.includes(category)}
-                onChange={(e) => onFilterChange('categories', category, e.target.checked)}
-              />
-              {category}
-            </CheckboxLabel>
-          ))}
-        </CheckboxContainer>
-      </FilterGroup>
-
       {/* Price Range Filter */}
       <FilterGroup>
         <FilterLabel>Price Range</FilterLabel>
         <RangeInput
           type="range"
           min="0"
-          max="500"
+          max="2000"
           value={filters.maxPrice}
           onChange={(e) => onFilterChange('maxPrice', parseInt(e.target.value))}
         />
         <RangeValues>
           <span>$0</span>
           <span>Up to ${filters.maxPrice}</span>
-          <span>$500</span>
+          <span>$2000</span>
         </RangeValues>
+      </FilterGroup>
+
+      {/* Brand Filter */}
+      <FilterGroup>
+        <FilterLabel>Brand</FilterLabel>
+        <CheckboxContainer>
+          {brands.map(brand => (
+            <CheckboxLabel key={brand}>
+              <CheckboxInput
+                type="checkbox"
+                checked={filters.brands.includes(brand)}
+                onChange={(e) => onFilterChange('brands', brand, e.target.checked)}
+              />
+              {brand}
+            </CheckboxLabel>
+          ))}
+        </CheckboxContainer>
       </FilterGroup>
 
       {/* Rating Filter */}
@@ -167,6 +168,23 @@ const Filters = ({
             </StarButton>
           ))}
         </StarRatingFilter>
+      </FilterGroup>
+
+      {/* RAM Filter */}
+      <FilterGroup>
+        <FilterLabel>RAM</FilterLabel>
+        <CheckboxContainer>
+          {rams.map(ram => (
+            <CheckboxLabel key={ram}>
+              <CheckboxInput
+                type="checkbox"
+                checked={filters.rams.includes(ram)}
+                onChange={(e) => onFilterChange('rams', ram, e.target.checked)}
+              />
+              {ram}
+            </CheckboxLabel>
+          ))}
+        </CheckboxContainer>
       </FilterGroup>
 
       {/* In Stock Filter */}

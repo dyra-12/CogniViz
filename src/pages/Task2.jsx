@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
-import { products, getUniqueCategories } from '../data/products';
+import { products, getUniqueBrands, getUniqueRAM } from '../data/products';
 import ProductCard from '../components/ProductCard';
 import Filters from '../components/Filters';
 import useLogger from '../hooks/useLogger';
+import { useTaskProgress } from '../contexts/TaskProgressContext';
 
 const PageContainer = styled.div`
   padding: ${props => props.theme.spacing[6]} 0;
@@ -65,42 +66,75 @@ const NoProducts = styled.div`
   color: ${props => props.theme.colors.gray600};
 `;
 
+const SuccessMessage = styled.div`
+  grid-column: 1 / -1;
+  background: ${props => props.theme.colors.success}15;
+  color: ${props => props.theme.colors.success};
+  padding: ${props => props.theme.spacing[6]};
+  border-radius: ${props => props.theme.borderRadius.xl};
+  text-align: center;
+  border: 1px solid ${props => props.theme.colors.success}30;
+  margin: ${props => props.theme.spacing[8]} auto;
+  max-width: 500px;
+`;
+
+const Container = styled.div`
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: ${props => props.theme.spacing[6]};
+`;
+
 const Task2 = () => {
   const { log } = useLogger();
-  const categories = getUniqueCategories();
+  const { completeCurrentTask } = useTaskProgress();
+  const brands = getUniqueBrands();
+  const rams = getUniqueRAM();
   
   const [filters, setFilters] = useState({
-    categories: [],
-    maxPrice: 500,
-    minRating: 0,
+    maxPrice: 1200,
+    brands: [],
+    minRating: 4,
+    rams: ['16GB', '32GB', '64GB'],
     inStockOnly: false,
     sortBy: 'name'
   });
 
   const [filteredProducts, setFilteredProducts] = useState(products);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [checkoutStep, setCheckoutStep] = useState('browsing'); // browsing, cart, checkout
 
   // Log initial view
   useEffect(() => {
-    log('catalog_view', { totalProducts: products.length });
+    log('catalog_view', { 
+      catalogType: 'laptops',
+      totalProducts: products.length 
+    });
   }, [log]);
 
   // Filter and sort products
   useMemo(() => {
     let result = [...products];
 
-    // Apply category filter
-    if (filters.categories.length > 0) {
+    // Apply price filter ($800-$1200 range)
+    result = result.filter(product => product.price >= 800 && product.price <= filters.maxPrice);
+
+    // Apply brand filter (Dell or Lenovo)
+    if (filters.brands.length > 0) {
       result = result.filter(product => 
-        filters.categories.includes(product.category)
+        filters.brands.includes(product.brand)
       );
     }
-
-    // Apply price filter
-    result = result.filter(product => product.price <= filters.maxPrice);
 
     // Apply rating filter
     if (filters.minRating > 0) {
       result = result.filter(product => product.rating >= filters.minRating);
+    }
+
+    // Apply RAM filter (at least 16GB)
+    if (filters.rams.length > 0) {
+      result = result.filter(product => 
+        filters.rams.includes(product.ram)
+      );
     }
 
     // Apply stock filter
@@ -130,10 +164,10 @@ const Task2 = () => {
     const previousFilters = { ...filters };
     let newValue = value;
 
-    if (filterType === 'categories') {
+    if (filterType === 'brands' || filterType === 'rams') {
       newValue = isChecked 
-        ? [...filters.categories, value]
-        : filters.categories.filter(cat => cat !== value);
+        ? [...filters[filterType], value]
+        : filters[filterType].filter(item => item !== value);
     }
 
     setFilters(prev => ({
@@ -152,9 +186,10 @@ const Task2 = () => {
   const handleClearFilters = () => {
     log('filters_clear', { previousFilters: filters });
     setFilters({
-      categories: [],
-      maxPrice: 500,
-      minRating: 0,
+      maxPrice: 1200,
+      brands: [],
+      minRating: 4,
+      rams: ['16GB', '32GB', '64GB'],
       inStockOnly: false,
       sortBy: 'name'
     });
@@ -170,29 +205,113 @@ const Task2 = () => {
     log('product_click', {
       productId: product.id,
       productName: product.name,
-      category: product.category,
-      price: product.price
+      brand: product.brand,
+      price: product.price,
+      rating: product.rating,
+      ram: product.ram
     });
-    // In a real app, you might navigate to a product detail page
-    alert(`Viewing details for: ${product.name}`);
+    setSelectedProduct(product);
   };
+
+  const handleAddToCart = () => {
+    if (selectedProduct) {
+      log('add_to_cart', {
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        brand: selectedProduct.brand,
+        price: selectedProduct.price,
+        rating: selectedProduct.rating,
+        ram: selectedProduct.ram
+      });
+      setCheckoutStep('cart');
+    }
+  };
+
+  const handleProceedToCheckout = () => {
+    log('proceed_to_checkout', {
+      product: selectedProduct
+    });
+    setCheckoutStep('checkout');
+  };
+
+  const handleCompletePurchase = () => {
+    log('purchase_complete', {
+      product: selectedProduct,
+      totalAmount: selectedProduct.price
+    });
+    completeCurrentTask();
+  };
+
+  // Checkout Steps
+  if (checkoutStep === 'cart') {
+    return (
+      <Container>
+        <SuccessMessage>
+          <h3>🛒 Added to Cart!</h3>
+          <p>Your selected laptop has been added to the shopping cart.</p>
+          <button 
+            onClick={handleProceedToCheckout}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#4361ee',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              marginTop: '1rem'
+            }}
+          >
+            Proceed to Checkout
+          </button>
+        </SuccessMessage>
+      </Container>
+    );
+  }
+
+  if (checkoutStep === 'checkout') {
+    return (
+      <Container>
+        <SuccessMessage>
+          <h3>✅ Order Complete!</h3>
+          <p>Thank you for your purchase. Your order has been processed successfully.</p>
+          <button 
+            onClick={handleCompletePurchase}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#4361ee',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              marginTop: '1rem'
+            }}
+          >
+            Continue to Next Task
+          </button>
+        </SuccessMessage>
+      </Container>
+    );
+  }
 
   return (
     <PageContainer>
-      <PageTitle>Product Catalog</PageTitle>
+      <PageTitle>Find Your Perfect Laptop</PageTitle>
       
       <ContentLayout>
         <Filters
           filters={filters}
           onFilterChange={handleFilterChange}
           onClearFilters={handleClearFilters}
-          categories={categories}
+          brands={brands}
+          rams={rams}
         />
         
         <div>
           <ResultsInfo>
             <ResultsCount>
-              Showing {filteredProducts.length} of {products.length} products
+              Showing {filteredProducts.length} of {products.length} laptops
             </ResultsCount>
             <SortSelect value={filters.sortBy} onChange={handleSortChange}>
               <option value="name">Sort by Name</option>
@@ -214,12 +333,58 @@ const Task2 = () => {
 
           {filteredProducts.length === 0 && (
             <NoProducts>
-              <h3>No products found</h3>
+              <h3>No laptops found</h3>
               <p>Try adjusting your filters to see more results.</p>
+              <p>Remember: You need a laptop between $800-$1200, Dell or Lenovo, 4+ stars, and at least 16GB RAM.</p>
             </NoProducts>
           )}
         </div>
       </ContentLayout>
+
+      {/* Selected Product Action Panel */}
+      {selectedProduct && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'white',
+          padding: '1rem',
+          borderTop: '2px solid #4361ee',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+          zIndex: 1000
+        }}>
+          <div style={{
+            maxWidth: '1400px',
+            margin: '0 auto',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0 1rem'
+          }}>
+            <div>
+              <h4 style={{ margin: '0 0 0.5rem 0' }}>Selected: {selectedProduct.name}</h4>
+              <p style={{ margin: 0, color: '#666' }}>
+                ${selectedProduct.price} • {selectedProduct.ram} • ⭐{selectedProduct.rating}
+              </p>
+            </div>
+            <button 
+              onClick={handleAddToCart}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#4361ee',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 };

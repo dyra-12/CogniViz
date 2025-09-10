@@ -10,6 +10,7 @@ const Card = styled.div`
   height: 100%;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
 
   &:hover {
     transform: translateY(-4px);
@@ -38,7 +39,7 @@ const StockBadge = styled.span`
   position: absolute;
   top: ${props => props.theme.spacing[3]};
   right: ${props => props.theme.spacing[3]};
-  background: ${props => props.inStock ? props.theme.colors.success : props.theme.colors.danger};
+  background: ${props => (props.inStock ? props.theme.colors.success : props.theme.colors.danger)};
   color: ${props => props.theme.colors.white};
   padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[3]};
   border-radius: ${props => props.theme.borderRadius.md};
@@ -101,7 +102,7 @@ const Stars = styled.div`
 `;
 
 const Star = styled.span`
-  color: ${props => props.filled ? '#ffc107' : props.theme.colors.gray300};
+  color: ${props => (props.filled ? '#ffc107' : props.theme.colors.gray300)};
   font-size: ${props => props.theme.fontSizes.sm};
 `;
 
@@ -110,53 +111,59 @@ const RatingText = styled.span`
   color: ${props => props.theme.colors.gray600};
 `;
 
-const ProductCard = ({ product, onProductClick }) => {
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, index) => (
+const ProductCard = ({ product, onProductClick, onAddToCart }) => {
+  const renderStars = (rating) =>
+    Array.from({ length: 5 }, (_, index) => (
       <Star key={index} filled={index < Math.floor(rating)}>
         ★
       </Star>
     ));
-  };
 
   const handleClick = () => {
-    onProductClick(product);
+    if (onProductClick) {
+      onProductClick(product);
+    }
+  };
+
+  const handleAddToCart = (e) => {
+    e.stopPropagation(); // prevent triggering card click
+    if (onAddToCart) {
+      onAddToCart(product);
+    }
   };
 
   return (
-    <Card>
+    <Card onClick={handleClick}>
       <ImageContainer>
         <ProductImage src={product.imageUrl} alt={product.name} />
         <StockBadge inStock={product.inStock}>
           {product.inStock ? 'In Stock' : 'Out of Stock'}
         </StockBadge>
       </ImageContainer>
-      
+
       <CardContent>
         <Category>{product.category}</Category>
         <ProductName>{product.name}</ProductName>
-        
+
         <PriceContainer>
           <CurrentPrice>${product.price}</CurrentPrice>
           {product.originalPrice > product.price && (
             <OriginalPrice>${product.originalPrice}</OriginalPrice>
           )}
         </PriceContainer>
-        
+
         <RatingContainer>
-          <Stars>
-            {renderStars(product.rating)}
-          </Stars>
+          <Stars>{renderStars(product.rating)}</Stars>
           <RatingText>({product.reviewCount})</RatingText>
         </RatingContainer>
-        
-        <Button 
-          onClick={handleClick}
+
+        <Button
+          onClick={handleAddToCart}
           variant={!product.inStock ? 'outline' : 'primary'}
           disabled={!product.inStock}
           style={{ marginTop: 'auto' }}
         >
-          {product.inStock ? 'View Details' : 'Out of Stock'}
+          {product.inStock ? 'Add to Cart' : 'Out of Stock'}
         </Button>
       </CardContent>
     </Card>

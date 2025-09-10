@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 
 const FiltersContainer = styled.div`
@@ -5,6 +6,7 @@ const FiltersContainer = styled.div`
   padding: ${props => props.theme.spacing[6]};
   border-radius: ${props => props.theme.borderRadius.xl};
   box-shadow: ${props => props.theme.shadows.md};
+  margin-bottom: ${props => props.theme.spacing[6]};
   height: fit-content;
 `;
 
@@ -67,17 +69,77 @@ const CheckboxInput = styled.input`
   accent-color: ${props => props.theme.colors.primary};
 `;
 
-const RangeInput = styled.input`
-  width: 100%;
-  margin: ${props => props.theme.spacing[3]} 0;
-  accent-color: ${props => props.theme.colors.primary};
+// Dual Range Slider Styles
+const RangeSliderContainer = styled.div`
+  position: relative;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  margin: ${props => props.theme.spacing[4]} 0;
 `;
 
-const RangeValues = styled.div`
+const SliderTrack = styled.div`
+  position: absolute;
+  height: 4px;
+  width: 100%;
+  background: ${props => props.theme.colors.gray300};
+  border-radius: 2px;
+  z-index: 1;
+`;
+
+const SliderRange = styled.div`
+  position: absolute;
+  height: 4px;
+  background: ${props => props.theme.colors.primary};
+  border-radius: 2px;
+  z-index: 2;
+  left: ${props => props.left}%;
+  width: ${props => props.width}%;
+`;
+
+const SliderInput = styled.input`
+  position: absolute;
+  width: 100%;
+  height: 0;
+  pointer-events: none;
+  appearance: none;
+  z-index: 3;
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    height: 18px;
+    width: 18px;
+    border-radius: 50%;
+    background: ${props => props.theme.colors.primary};
+    cursor: pointer;
+    pointer-events: all;
+    box-shadow: 0 0 0 1px #fff, 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  &::-moz-range-thumb {
+    appearance: none;
+    height: 18px;
+    width: 18px;
+    border-radius: 50%;
+    background: ${props => props.theme.colors.primary};
+    cursor: pointer;
+    pointer-events: all;
+    box-shadow: 0 0 0 1px #fff, 0 2px 4px rgba(0,0,0,0.2);
+    border: none;
+  }
+`;
+
+const PriceValues = styled.div`
   display: flex;
   justify-content: space-between;
+  margin-top: ${props => props.theme.spacing[4]};
   font-size: ${props => props.theme.fontSizes.sm};
   color: ${props => props.theme.colors.gray600};
+`;
+
+const PriceDisplay = styled.span`
+  font-weight: 600;
+  color: ${props => props.theme.colors.primary};
 `;
 
 const StarRatingFilter = styled.div`
@@ -108,8 +170,33 @@ const Filters = ({
   onFilterChange, 
   onClearFilters,
   brands,
-  rams 
+  rams
 }) => {
+  const minPriceRef = useRef(0);
+  const maxPriceRef = useRef(2000);
+  const [minVal, setMinVal] = useState(filters.minPrice);
+  const [maxVal, setMaxVal] = useState(filters.maxPrice);
+
+  useEffect(() => {
+    setMinVal(filters.minPrice);
+    setMaxVal(filters.maxPrice);
+  }, [filters.minPrice, filters.maxPrice]);
+
+  const handleMinChange = (e) => {
+    const value = Math.min(Number(e.target.value), maxVal - 1);
+    setMinVal(value);
+    onFilterChange('minPrice', value);
+  };
+
+  const handleMaxChange = (e) => {
+    const value = Math.max(Number(e.target.value), minVal + 1);
+    setMaxVal(value);
+    onFilterChange('maxPrice', value);
+  };
+
+  const minPercent = ((minVal - minPriceRef.current) / (maxPriceRef.current - minPriceRef.current)) * 100;
+  const maxPercent = ((maxVal - minPriceRef.current) / (maxPriceRef.current - minPriceRef.current)) * 100;
+
   return (
     <FiltersContainer>
       <FilterTitle>
@@ -119,21 +206,39 @@ const Filters = ({
         </ClearButton>
       </FilterTitle>
 
-      {/* Price Range Filter */}
+      {/* Price Range Filter with Dual Slider */}
       <FilterGroup>
         <FilterLabel>Price Range</FilterLabel>
-        <RangeInput
-          type="range"
-          min="0"
-          max="2000"
-          value={filters.maxPrice}
-          onChange={(e) => onFilterChange('maxPrice', parseInt(e.target.value))}
-        />
-        <RangeValues>
-          <span>$0</span>
-          <span>Up to ${filters.maxPrice}</span>
-          <span>$2000</span>
-        </RangeValues>
+        <RangeSliderContainer>
+          <SliderTrack />
+          <SliderRange left={minPercent} width={maxPercent - minPercent} />
+          
+          <SliderInput
+            type="range"
+            min={minPriceRef.current}
+            max={maxPriceRef.current}
+            value={minVal}
+            onChange={handleMinChange}
+            style={{ zIndex: minVal > maxPriceRef.current - 100 ? '4' : '3' }}
+          />
+          
+          <SliderInput
+            type="range"
+            min={minPriceRef.current}
+            max={maxPriceRef.current}
+            value={maxVal}
+            onChange={handleMaxChange}
+          />
+        </RangeSliderContainer>
+
+        <PriceValues>
+          <div>
+            Min: <PriceDisplay>${minVal}</PriceDisplay>
+          </div>
+          <div>
+            Max: <PriceDisplay>${maxVal}</PriceDisplay>
+          </div>
+        </PriceValues>
       </FilterGroup>
 
       {/* Brand Filter */}
@@ -157,14 +262,14 @@ const Filters = ({
       <FilterGroup>
         <FilterLabel>Minimum Rating</FilterLabel>
         <StarRatingFilter>
-          {[4, 3, 2, 1].map(rating => (
+          {[4, 3, 2, 1, 0].map(rating => (
             <StarButton
               key={rating}
               active={filters.minRating === rating}
-              onClick={() => onFilterChange('minRating', filters.minRating === rating ? 0 : rating)}
+              onClick={() => onFilterChange('minRating', rating)}
             >
-              <span>{'★'.repeat(rating)}</span>
-              <span>&amp; up</span>
+              <span>{rating > 0 ? '★'.repeat(rating) : 'Any'}</span>
+              <span>{rating > 0 ? '& up' : 'rating'}</span>
             </StarButton>
           ))}
         </StarRatingFilter>

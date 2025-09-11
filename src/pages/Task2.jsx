@@ -242,7 +242,6 @@ const Task2 = () => {
         meetsRating,
         meetsRAM
       });
-      alert('This product does not meet all the task requirements. Please select a product that matches all filter criteria.');
       return;
     }
 
@@ -273,10 +272,10 @@ const Task2 = () => {
 
   const handleCompleteTask = () => {
     // Final validation - ensure ALL requirements are met
-    const meetsPrice = filters.minPrice <= 800 && filters.maxPrice >= 1200;
-    const meetsBrand = filters.brands.includes('Dell') || filters.brands.includes('Lenovo');
-    const meetsRating = filters.minRating >= 4;
-    const meetsRAM = filters.rams.some(ram => ['16GB', '32GB', '64GB'].includes(ram));
+    const meetsPrice = selectedProduct && selectedProduct.price >= 800 && selectedProduct.price <= 1200;
+    const meetsBrand = selectedProduct && ['Dell', 'Lenovo'].includes(selectedProduct.brand);
+    const meetsRating = selectedProduct && selectedProduct.rating >= 4;
+    const meetsRAM = selectedProduct && ['16GB', '32GB', '64GB'].includes(selectedProduct.ram);
     const hasSelectedProduct = !!selectedProduct;
 
     if (!meetsPrice || !meetsBrand || !meetsRating || !meetsRAM || !hasSelectedProduct) {
@@ -287,7 +286,6 @@ const Task2 = () => {
         meetsRAM,
         hasSelectedProduct
       });
-      alert('Not all task requirements have been met. Please ensure you have completed all filters and selected an appropriate product.');
       return;
     }
 

@@ -5,6 +5,7 @@ import { TaskProgressProvider } from './contexts/TaskProgressContext';
 import { theme } from './styles/theme';
 import GlobalStyles from './styles/GlobalStyles';
 import AppLayout from './components/AppLayout';
+import Task3 from './pages/Task3';
 
 function App() {
   return (

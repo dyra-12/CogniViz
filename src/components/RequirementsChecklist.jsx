@@ -98,10 +98,8 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
   useEffect(() => {
     const updatedRequirements = [...requirements];
     
-    // Check price requirement - must include the $800-$1200 range
-    updatedRequirements[0].completed = 
-      filters.minPrice <= 800 && 
-      filters.maxPrice >= 1200;
+    // Check price requirement: min >= 800 AND max <= 1200
+    updatedRequirements[0].completed = filters.minPrice >= 800 && filters.maxPrice <= 1200;
     
     // Check brand requirement
     updatedRequirements[1].completed = filters.brands.includes('Dell') || filters.brands.includes('Lenovo');
@@ -131,6 +129,8 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
         return selectedProduct ? 'Add to Cart' : 'Select a Product First';
       case 'cart':
         return 'Complete Task';
+      case 'checkout':
+        return 'Task Complete';
       default:
         return 'Continue';
     }
@@ -142,6 +142,8 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
         return !selectedProduct || !requirements.slice(0, 4).every(req => req.completed);
       case 'cart':
         return false; // Always allow completing the task from cart
+      case 'checkout':
+        return false; // Task is already complete
       default:
         return true;
     }
@@ -200,7 +202,7 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
         </div>
       )}
 
-      {checkoutStep === 'cart' && allRequirementsMet && (
+      {checkoutStep === 'checkout' && (
         <div style={{ 
           fontSize: '0.9rem', 
           color: '#28a745', 
@@ -208,7 +210,7 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
           marginTop: '1rem',
           fontWeight: '600'
         }}>
-          ✅ All requirements completed! Ready to finish the task.
+          ✅ All requirements completed!
         </div>
       )}
     </ChecklistContainer>

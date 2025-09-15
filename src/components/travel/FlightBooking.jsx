@@ -9,8 +9,14 @@ const Container = styled.div`
 `;
 
 const Title = styled.h3`
-  margin-bottom: ${props => props.theme.spacing[4]};
+  margin-bottom: ${props => props.theme.spacing[2]};
   color: ${props => props.theme.colors.dark};
+`;
+
+const Constraint = styled.div`
+  margin-bottom: ${props => props.theme.spacing[4]};
+  color: ${props => props.theme.colors.gray600};
+  font-style: italic;
 `;
 
 const Table = styled.table`
@@ -61,27 +67,25 @@ const SelectButton = styled.button`
   }
 `;
 
-const FlightBooking = ({ flights, onFlightSelect, selectedFlight }) => {
+const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constraint }) => {
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
   const formatDuration = (hours) => {
-    return `${Math.floor(hours)}h ${Math.floor((hours % 1) * 60)}m`;
+    const hoursInt = Math.floor(hours);
+    const minutes = Math.floor((hours % 1) * 60);
+    return `${hoursInt}h ${minutes}m`;
   };
 
   return (
     <Container>
-      <Title>Book Your Flight (NY → Berlin → NY)</Title>
-      
-      <div style={{ marginBottom: '1rem' }}>
-        <strong>Constraints:</strong> Outbound must arrive before 3PM Day 1, Return must depart after 12PM Day 4
-      </div>
+      <Title>{title}</Title>
+      <Constraint>{constraint}</Constraint>
 
       <Table>
         <thead>
           <tr>
-            <Th>Type</Th>
             <Th>Airline</Th>
             <Th>Departure</Th>
             <Th>Arrival</Th>
@@ -97,7 +101,6 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight }) => {
               key={flight.id} 
               className={selectedFlight?.id === flight.id ? 'selected' : ''}
             >
-              <Td>{flight.type === 'outbound' ? 'Outbound' : 'Return'}</Td>
               <Td>{flight.airline}</Td>
               <Td>{formatTime(flight.departureTime)}</Td>
               <Td>{formatTime(flight.arrivalTime)}</Td>

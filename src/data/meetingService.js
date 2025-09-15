@@ -7,8 +7,13 @@ export const meetings = [
     day: null,
     startTime: null,
     constraints: {
-      allowedDays: [2, 3], // Day 2 or 3 only
-      timeRange: { start: 9, end: 17 } // 9AM-5PM
+      allowedDays: [2, 3],
+      timeRange: { start: 9, end: 17 },
+      mustHaveBreak: true, // Requires 30min break before or after
+      priority: 'high',
+      requiredAttendees: ['CEO', 'CTO'],
+      preparationTime: 1, // Requires 1 hour preparation time before
+      cannotOverlapWith: ['meeting_3'] // Cannot overlap with team session
     }
   },
   {
@@ -19,8 +24,61 @@ export const meetings = [
     day: null,
     startTime: null,
     constraints: {
-      allowedDays: [1, 2, 3, 4], // Any day
-      timeRange: { start: 9, end: 17 }
+      allowedDays: [1, 2],
+      timeRange: { start: 9, end: 15 }, // Must end by 15:00
+      priority: 'high',
+      fixedTime: true, // Must be scheduled at specific time if available
+      preferredTime: 10, // Preferred start at 10:00
+      mandatory: true // Cannot be skipped
+    }
+  },
+  {
+    id: 'meeting_3',
+    title: 'Team Strategy Session',
+    duration: 2,
+    scheduled: false,
+    day: null,
+    startTime: null,
+    constraints: {
+      allowedDays: [2, 3, 4],
+      timeRange: { start: 13, end: 17 }, // Afternoon only
+      mustFollow: 'meeting_1', // Must be after Client meeting
+      priority: 'medium',
+      minParticipants: 5,
+      requiresConferenceRoom: true,
+      cannotOverlapWith: ['meeting_1'] // Cannot overlap with client meeting
+    }
+  },
+  {
+    id: 'meeting_4',
+    title: 'Networking Dinner',
+    duration: 2,
+    scheduled: false,
+    day: null,
+    startTime: null,
+    constraints: {
+      allowedDays: [1, 2, 3],
+      timeRange: { start: 18, end: 21 }, // Evening only (18:00-21:00)
+      priority: 'low',
+      requiresRestaurantReservation: true,
+      maxParticipants: 8,
+      budget: 50 // Has a budget constraint for the dinner
+    }
+  },
+  {
+    id: 'meeting_5',
+    title: 'Product Demo for Investors',
+    duration: 1.5,
+    scheduled: false,
+    day: null,
+    startTime: null,
+    constraints: {
+      allowedDays: [3, 4],
+      timeRange: { start: 11, end: 16 }, // Late morning to afternoon
+      priority: 'high',
+      mustPrecede: 'meeting_3', // Must come before team session
+      requiresEquipment: ['projector', 'demo units'],
+      minSetupTime: 0.5 // Requires 30 minutes setup time
     }
   }
 ];

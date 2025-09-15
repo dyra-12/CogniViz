@@ -19,6 +19,7 @@ const DayColumn = styled.div`
   border: 1px solid ${props => props.theme.colors.gray300};
   border-radius: ${props => props.theme.borderRadius.lg};
   padding: ${props => props.theme.spacing[3]};
+  min-height: 400px;
 `;
 
 const DayHeader = styled.h4`
@@ -32,10 +33,11 @@ const TimeSlot = styled.div`
   border-radius: ${props => props.theme.borderRadius.md};
   padding: ${props => props.theme.spacing[2]};
   margin-bottom: ${props => props.theme.spacing[2]};
-  min-height: 40px;
+  min-height: 60px;
   background: ${props => props.hasMeeting ? props.theme.colors.primary : props.theme.colors.gray50};
   color: ${props => props.hasMeeting ? props.theme.colors.white : props.theme.colors.gray700};
   cursor: ${props => props.hasMeeting ? 'move' : 'default'};
+  font-size: ${props => props.theme.fontSizes.xs};
   
   &:hover {
     background: ${props => props.hasMeeting ? props.theme.colors.primary : props.theme.colors.gray100};
@@ -56,10 +58,28 @@ const MeetingItem = styled.div`
   border: 1px solid ${props => props.theme.colors.warning};
   border-radius: ${props => props.theme.borderRadius.md};
   cursor: move;
+  font-size: ${props => props.theme.fontSizes.sm};
   
   &:hover {
     background: ${props => props.theme.colors.warning}30;
   }
+`;
+
+const MeetingConstraints = styled.div`
+  font-size: ${props => props.theme.fontSizes.xs};
+  margin-top: ${props => props.theme.spacing[1]};
+  color: ${props => props.theme.colors.gray600};
+`;
+
+const ConstraintBadge = styled.span`
+  display: inline-block;
+  background: ${props => props.theme.colors.info}20;
+  color: ${props => props.theme.colors.info};
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-right: ${props => props.theme.spacing[1]};
+  font-size: ${props => props.theme.fontSizes.xs};
+  border: 1px solid ${props => props.theme.colors.info}30;
 `;
 
 const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
@@ -86,12 +106,38 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
 
   const unscheduledMeetings = meetings.filter(m => !m.scheduled);
 
+  const getConstraintBadges = (meeting) => {
+    const badges = [];
+    
+    if (meeting.constraints.allowedDays) {
+      badges.push(`Day ${meeting.constraints.allowedDays.join('/')}`);
+    }
+    
+    if (meeting.constraints.timeRange) {
+      badges.push(`${meeting.constraints.timeRange.start}:00-${meeting.constraints.timeRange.end}:00`);
+    }
+    
+    if (meeting.constraints.mustFollow) {
+      badges.push('After Client');
+    }
+    
+    if (meeting.constraints.mustPrecede) {
+      badges.push('Before Team');
+    }
+    
+    if (meeting.constraints.cannotOverlapWith) {
+      badges.push('No Overlap');
+    }
+    
+    return badges;
+  };
+
   return (
     <SchedulerContainer>
       <h3>Schedule Your Meetings</h3>
       
       <div style={{ marginBottom: '1rem' }}>
-        <strong>Constraints:</strong> 9AM-5PM only, no overlaps, Client meeting on Day 2 or 3 only
+        <strong>Complex Constraints:</strong> Each meeting has specific day, time, and dependency requirements. Check the badges below each meeting for details.
       </div>
 
       <CalendarGrid>
@@ -109,7 +155,8 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
                 >
                   {meeting ? (
                     <div draggable onDragStart={(e) => handleDragStart(e, meeting)}>
-                      {meeting.title} ({meeting.duration}h)
+                      <div><strong>{meeting.title}</strong></div>
+                      <div>({meeting.duration}h, {hour}:00-{hour + meeting.duration}:00)</div>
                     </div>
                   ) : (
                     `${hour}:00`
@@ -130,7 +177,12 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
               draggable
               onDragStart={(e) => handleDragStart(e, meeting)}
             >
-              {meeting.title} ({meeting.duration} hours)
+              <div><strong>{meeting.title}</strong> ({meeting.duration}h)</div>
+              <MeetingConstraints>
+                {getConstraintBadges(meeting).map((badge, index) => (
+                  <ConstraintBadge key={index}>{badge}</ConstraintBadge>
+                ))}
+              </MeetingConstraints>
             </MeetingItem>
           ))}
         </UnscheduledMeetings>

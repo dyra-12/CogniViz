@@ -4,11 +4,13 @@ import { useTaskProgress } from '../contexts/TaskProgressContext';
 import useLogger from '../hooks/useLogger';
 import { generateFlights, filterFlights } from '../data/flightService';
 import { generateHotels } from '../data/hotelService';
+import { generateTransportOptions } from '../data/transportService';
 import { meetings as initialMeetings } from '../data/meetingService';
 import FlightBooking from '../components/travel/FlightBooking';
 import HotelBooking from '../components/travel/HotelBooking';
 import MeetingScheduler from '../components/travel/MeetingScheduler';
 import BudgetSummary from '../components/travel/BudgetSummary';
+import TransportSelection from '../components/travel/TransportSelection';
 import Button from '../components/Button';
 
 const PageContainer = styled.div`
@@ -67,81 +69,47 @@ const Task3 = () => {
   
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
+  const [transportOptions, setTransportOptions] = useState([]);
   const [meetings, setMeetings] = useState(initialMeetings);
   
-  const [selectedFlight, setSelectedFlight] = useState(null);
+  const [selectedOutboundFlight, setSelectedOutboundFlight] = useState(null);
+  const [selectedReturnFlight, setSelectedReturnFlight] = useState(null);
   const [selectedHotel, setSelectedHotel] = useState(null);
+  const [selectedTransport, setSelectedTransport] = useState(null);
   
   const [validationErrors, setValidationErrors] = useState([]);
   const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
-    // Load initial data
     setFlights(generateFlights());
     setHotels(generateHotels());
+    setTransportOptions(generateTransportOptions());
     
     log('travel_dashboard_view');
   }, [log]);
 
-  const totalCost = (selectedFlight?.price || 0) + (selectedHotel?.totalPrice || 0);
-  const remainingBudget = 2200 - totalCost;
+  const totalCost = (selectedOutboundFlight?.price || 0) + 
+                   (selectedReturnFlight?.price || 0) + 
+                   (selectedHotel?.totalPrice || 0) + 
+                   (selectedTransport?.price || 0);
 
-  const validateConstraints = () => {
-    const errors = [];
+  const remainingBudget = 1000 - totalCost;
 
-    if (!selectedFlight) {
-      errors.push('Please select a flight');
-    } else {
-      if (selectedFlight.type === 'outbound' && selectedFlight.arrivalTime.getHours() >= 15) {
-        errors.push('Outbound flight must arrive before 3PM');
-      }
-      if (selectedFlight.type === 'return' && selectedFlight.departureTime.getHours() < 12) {
-        errors.push('Return flight must depart after 12PM');
-      }
-    }
-
-    if (!selectedHotel) {
-      errors.push('Please select a hotel');
-    } else {
-      if (selectedHotel.distance > 5) {
-        errors.push('Hotel must be within 5km of conference center');
-      }
-      if (selectedHotel.stars < 3) {
-        errors.push('Hotel must be 3 stars or higher');
-      }
-    }
-
-    const unscheduledMeetings = meetings.filter(m => !m.scheduled);
-    if (unscheduledMeetings.length > 0) {
-      errors.push(`Please schedule all meetings (${unscheduledMeetings.length} unscheduled)`);
-    }
-
-    if (remainingBudget < 0) {
-      errors.push('Budget exceeded! Please choose less expensive options');
-    }
-
-    // Check meeting constraints
-    meetings.forEach(meeting => {
-      if (meeting.scheduled) {
-        if (meeting.title.includes('Client') && ![2, 3].includes(meeting.day)) {
-          errors.push('Client meeting must be on Day 2 or 3');
-        }
-        if (meeting.startTime < 9 || meeting.startTime + meeting.duration > 17) {
-          errors.push('Meetings must be scheduled between 9AM-5PM');
-        }
-      }
-    });
-
-    setValidationErrors(errors);
-    return errors.length === 0;
-  };
-
-  const handleFlightSelect = (flight) => {
-    setSelectedFlight(flight);
-    log('flight_selected', {
+  const handleOutboundFlightSelect = (flight) => {
+    setSelectedOutboundFlight(flight);
+    log('outbound_flight_selected', {
       airline: flight.airline,
       price: flight.price,
-      type: flight.type
+      arrivalTime: flight.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    });
+  };
+
+  const handleReturnFlightSelect = (flight) => {
+    setSelectedReturnFlight(flight);
+    log('return_flight_selected', {
+      airline: flight.airline,
+      price: flight.price,
+      departureTime: flight.departureTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     });
   };
 
@@ -151,6 +119,14 @@ const Task3 = () => {
       name: hotel.name,
       price: hotel.totalPrice,
       distance: hotel.distance
+    });
+  };
+
+  const handleTransportSelect = (transport) => {
+    setSelectedTransport(transport);
+    log('transport_selected', {
+      type: transport.type,
+      price: transport.price
     });
   };
 
@@ -169,13 +145,142 @@ const Task3 = () => {
     });
   };
 
+  const validateConstraints = () => {
+    const errors = [];
+
+    // Flight validation
+    if (!selectedOutboundFlight) {
+      errors.push('Please select an outbound flight');
+    } else if (selectedOutboundFlight.arrivalTime.getHours() >= 15) {
+      errors.push('Outbound flight must arrive before 15:00');
+    }
+
+    if (!selectedReturnFlight) {
+      errors.push('Please select a return flight');
+    } else if (selectedReturnFlight.departureTime.getHours() < 12) {
+      errors.push('Return flight must depart after 12:00');
+    }
+
+    // Hotel validation
+    if (!selectedHotel) {
+      errors.push('Please select a hotel');
+    } else {
+      if (selectedHotel.distance > 5) {
+        errors.push('Hotel must be within 5km of conference center');
+      }
+      if (selectedHotel.stars < 3) {
+        errors.push('Hotel must be 3 stars or higher');
+      }
+    }
+
+    // Transport validation
+    if (!selectedTransport) {
+      errors.push('Please select a transportation option');
+    }
+
+    // Meeting validation
+    const unscheduledMeetings = meetings.filter(m => !m.scheduled);
+    if (unscheduledMeetings.length > 0) {
+      errors.push(`Please schedule all meetings (${unscheduledMeetings.length} unscheduled)`);
+    }
+
+    // Budget validation
+    if (remainingBudget < 0) {
+      errors.push('Budget exceeded! Please choose less expensive options');
+    }
+
+    // Enhanced meeting constraints validation
+    meetings.forEach(meeting => {
+      if (meeting.scheduled) {
+        // Check day constraints
+        if (meeting.constraints.allowedDays && !meeting.constraints.allowedDays.includes(meeting.day)) {
+          errors.push(`${meeting.title} must be on day ${meeting.constraints.allowedDays.join(' or ')}`);
+        }
+        
+        // Check time constraints
+        if (meeting.startTime < meeting.constraints.timeRange.start || 
+            meeting.startTime + meeting.duration > meeting.constraints.timeRange.end) {
+          errors.push(`${meeting.title} must be scheduled between ${meeting.constraints.timeRange.start}:00 and ${meeting.constraints.timeRange.end}:00`);
+        }
+        
+        // Check mustFollow constraint
+        if (meeting.constraints.mustFollow) {
+          const followedMeeting = meetings.find(m => m.id === meeting.constraints.mustFollow);
+          if (followedMeeting && followedMeeting.scheduled) {
+            if (meeting.day < followedMeeting.day || 
+                (meeting.day === followedMeeting.day && meeting.startTime <= followedMeeting.startTime + followedMeeting.duration)) {
+              errors.push(`${meeting.title} must be scheduled after ${followedMeeting.title}`);
+            }
+          }
+        }
+        
+        // Check mustPrecede constraint
+        if (meeting.constraints.mustPrecede) {
+          const precededMeeting = meetings.find(m => m.id === meeting.constraints.mustPrecede);
+          if (precededMeeting && precededMeeting.scheduled) {
+            if (meeting.day > precededMeeting.day || 
+                (meeting.day === precededMeeting.day && meeting.startTime + meeting.duration >= precededMeeting.startTime)) {
+              errors.push(`${meeting.title} must be scheduled before ${precededMeeting.title}`);
+            }
+          }
+        }
+        
+        // Check cannotOverlapWith constraints
+        if (meeting.constraints.cannotOverlapWith) {
+          meeting.constraints.cannotOverlapWith.forEach(otherMeetingId => {
+            const otherMeeting = meetings.find(m => m.id === otherMeetingId);
+            if (otherMeeting && otherMeeting.scheduled && otherMeeting.day === meeting.day) {
+              const meetingEnd = meeting.startTime + meeting.duration;
+              const otherMeetingEnd = otherMeeting.startTime + otherMeeting.duration;
+              
+              if (!(meetingEnd <= otherMeeting.startTime || meeting.startTime >= otherMeetingEnd)) {
+                errors.push(`${meeting.title} cannot overlap with ${otherMeeting.title}`);
+              }
+            }
+          });
+        }
+
+        // Check preparation time constraint
+        if (meeting.constraints.preparationTime) {
+          const hasPreparationTime = checkPreparationTime(meeting);
+          if (!hasPreparationTime) {
+            errors.push(`${meeting.title} requires ${meeting.constraints.preparationTime}h preparation time`);
+          }
+        }
+
+        // Check setup time constraint
+        if (meeting.constraints.minSetupTime) {
+          const hasSetupTime = checkSetupTime(meeting);
+          if (!hasSetupTime) {
+            errors.push(`${meeting.title} requires ${meeting.constraints.minSetupTime}h setup time`);
+          }
+        }
+      }
+    });
+
+    setValidationErrors(errors);
+    return errors.length === 0;
+  };
+
+  const checkPreparationTime = (meeting) => {
+    // Simplified check - in real implementation, would check calendar slots
+    return true;
+  };
+
+  const checkSetupTime = (meeting) => {
+    // Simplified check - in real implementation, would check calendar slots
+    return true;
+  };
+
   const handleFinalize = () => {
     if (validateConstraints()) {
       log('trip_finalized', {
         totalCost,
         remainingBudget,
-        flight: selectedFlight,
+        outboundFlight: selectedOutboundFlight,
+        returnFlight: selectedReturnFlight,
         hotel: selectedHotel,
+        transport: selectedTransport,
         meetings: meetings.filter(m => m.scheduled)
       });
       setIsCompleted(true);
@@ -213,15 +318,31 @@ const Task3 = () => {
       <Layout>
         <MainContent>
           <FlightBooking
-            flights={[...filteredOutboundFlights, ...filteredReturnFlights]}
-            onFlightSelect={handleFlightSelect}
-            selectedFlight={selectedFlight}
+            flights={filteredOutboundFlights}
+            onFlightSelect={handleOutboundFlightSelect}
+            selectedFlight={selectedOutboundFlight}
+            title="Outbound Flight (NY → Berlin)"
+            constraint="Must arrive before 15:00 on the same day"
+          />
+          
+          <FlightBooking
+            flights={filteredReturnFlights}
+            onFlightSelect={handleReturnFlightSelect}
+            selectedFlight={selectedReturnFlight}
+            title="Return Flight (Berlin → NY)"
+            constraint="Must depart after 12:00 on Day 4"
           />
           
           <HotelBooking
             hotels={hotels}
             onHotelSelect={handleHotelSelect}
             selectedHotel={selectedHotel}
+          />
+          
+          <TransportSelection
+            options={transportOptions}
+            selectedOption={selectedTransport}
+            onSelect={handleTransportSelect}
           />
           
           <MeetingScheduler
@@ -232,8 +353,10 @@ const Task3 = () => {
 
         <Sidebar>
           <BudgetSummary
-            flight={selectedFlight}
+            flight={selectedOutboundFlight}
+            returnFlight={selectedReturnFlight}
             hotel={selectedHotel}
+            transport={selectedTransport}
             total={totalCost}
             remaining={remainingBudget}
           />
@@ -248,6 +371,7 @@ const Task3 = () => {
             
             {validationErrors.length > 0 && (
               <div style={{ marginTop: '1rem' }}>
+                <h4>Issues to resolve:</h4>
                 {validationErrors.map((error, index) => (
                   <ErrorMessage key={index}>
                     ⚠️ {error}

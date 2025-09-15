@@ -30,7 +30,7 @@ const Remaining = styled(BudgetItem)`
   font-size: ${props => props.theme.fontSizes.lg};
 `;
 
-const BudgetSummary = ({ flight, hotel, total, remaining }) => {
+const BudgetSummary = ({ flight, hotel, transport, total, remaining }) => {
   return (
     <BudgetContainer>
       <h3>Budget Summary</h3>
@@ -45,6 +45,11 @@ const BudgetSummary = ({ flight, hotel, total, remaining }) => {
         <span>{hotel ? `$${hotel.totalPrice}` : 'Not selected'}</span>
       </BudgetItem>
       
+      <BudgetItem>
+        <span>Transportation:</span>
+        <span>{transport ? `$${transport.price}` : 'Not selected'}</span>
+      </BudgetItem>
+      
       <Total>
         <span>Total Cost:</span>
         <span>${total}</span>
@@ -56,7 +61,7 @@ const BudgetSummary = ({ flight, hotel, total, remaining }) => {
       </Remaining>
       
       <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
-        Total Budget: $2,200
+        Total Budget: $1,000
       </div>
     </BudgetContainer>
   );

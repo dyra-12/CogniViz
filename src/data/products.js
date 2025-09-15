@@ -6,7 +6,7 @@ const generateProducts = () => {
   const storages = ['256GB SSD', '512GB SSD', '1TB SSD', '2TB SSD'];
   const gpus = ['Integrated', 'NVIDIA GTX 1650', 'NVIDIA RTX 3050', 'NVIDIA RTX 4060', 'AMD Radeon RX 6600'];
   
-  return Array.from({ length: 25 }, (_, index) => {
+  const products = Array.from({ length: 24 }, (_, index) => {
     const brand = brands[Math.floor(Math.random() * brands.length)];
     const basePrice = Math.random() > 0.5 ? 600 + Math.random() * 1400 : 800 + Math.random() * 1200;
     const price = parseFloat(basePrice.toFixed(2));
@@ -30,6 +30,28 @@ const generateProducts = () => {
       screenSize: `${13 + Math.floor(Math.random() * 6)} inch` // 13-18 inch
     };
   });
+
+  // Add the specific Lenovo laptop as the 25th product
+  products.push({
+    id: 'laptop_lenovo_special',
+    name: 'Lenovo ThinkPad X1 Carbon',
+    description: 'Premium business laptop with Intel i7 processor, 16GB RAM, and 512GB SSD. Excellent build quality and performance.',
+    price: 950,
+    originalPrice: 1199,
+    brand: 'Lenovo',
+    category: 'Laptops',
+    cpu: 'Intel i7',
+    ram: '16GB',
+    storage: '512GB SSD',
+    gpu: 'Integrated',
+    rating: 4.0,
+    reviewCount: 147,
+    imageUrl: 'https://picsum.photos/300/200?random=250',
+    inStock: true,
+    screenSize: '14 inch'
+  });
+
+  return products;
 };
 
 // Create the products array

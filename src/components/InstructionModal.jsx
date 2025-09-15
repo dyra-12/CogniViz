@@ -64,6 +64,16 @@ const ButtonContainer = styled.div`
   justify-content: center;
 `;
 
+const BudgetWarning = styled.div`
+  background: ${props => props.theme.colors.warning}15;
+  color: ${props => props.theme.colors.warning};
+  padding: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  border: 1px solid ${props => props.theme.colors.warning}30;
+  margin-top: ${props => props.theme.spacing[4]};
+  font-weight: 600;
+`;
+
 const InstructionModal = ({ taskNumber, onClose }) => {
   const getTaskInstructions = () => {
     switch (taskNumber) {
@@ -95,16 +105,18 @@ const InstructionModal = ({ taskNumber, onClose }) => {
       case 3:
         return {
           title: 'Task 3: Plan Your Business Trip to Berlin',
-          goal: 'Plan a 4-day, 3-night business trip to Berlin with a total budget of $2,200. Book flights, hotel, and schedule meetings.',
+          goal: 'Plan a 4-day, 3-night business trip to Berlin with a tight budget of $1,000. Book flights, hotel, transportation, and schedule meetings with multiple complex constraints.',
           steps: [
-            'Book a Flight: Choose round-trip flight from NY to Berlin that arrives before 3PM Day 1 and departs after 12PM Day 4',
+            'Book a Flight: Choose round-trip flight from NY to Berlin that arrives before 15:00 on the same day and departs after 12:00 on Day 4',
             'Book a Hotel: Choose a 3+ star hotel within 5km of Conference Center for 3 nights',
-            'Schedule Meetings: Drag the two meetings into the calendar on Day 2 or Day 3 between 9AM-5PM',
-            'Manage Budget: Keep total cost under $2,200',
+            'Select Transportation: Choose how you will get around Berlin',
+            'Schedule Meetings: Drag all five meetings into the calendar respecting complex time constraints and dependencies',
+            'Manage Budget: Keep total cost under $1,000 - careful planning required!',
             'Finalize your trip when everything is arranged'
-          ]
+          ],
+          budgetWarning: '⚠️ Tight budget of $1,000 - plan carefully!'
         };
-      default:
+        default:
         return { title: '', goal: '', steps: [] };
     }
   };
@@ -128,6 +140,12 @@ const InstructionModal = ({ taskNumber, onClose }) => {
             ))}
           </ul>
         </Instructions>
+
+        {instructions.budgetWarning && (
+          <BudgetWarning>
+            {instructions.budgetWarning}
+          </BudgetWarning>
+        )}
 
         <ButtonContainer>
           <Button onClick={onClose}>

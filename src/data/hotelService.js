@@ -1,46 +1,174 @@
 export const generateHotels = () => {
   const hotels = [
-    'Grand Berlin Hotel', 'City Inn Berlin', 'River View Hotel', 
-    'Berlin Plaza', 'Central Station Hotel', 'Park Luxury Berlin',
-    'Business Tower', 'Conference Center Hotel', 'Modern Stay Berlin',
-    'Airport Suites', 'Historic District Inn', 'Tech Park Residence'
-  ];
-  
-  const results = [];
-  
-  hotels.forEach((name, index) => {
-    const stars = Math.floor(Math.random() * 3) + 3; // 3-5 stars
-    const distance = parseFloat((0.5 + Math.random() * 9.5).toFixed(1)); // 0.5-10.0 km
-    
-    // Lower prices to fit $1000 budget
-    const pricePerNight = 40 + Math.floor(Math.random() * 80); // 40-120 per night
-    
-    // Price increases for higher ratings and better locations
-    let finalPrice = pricePerNight;
-    if (stars >= 4) finalPrice += 20;
-    if (stars === 5) finalPrice += 30;
-    if (distance <= 2) finalPrice += 25; // Premium for very close locations
-    else if (distance <= 5) finalPrice += 15;
-    
-    const totalPrice = finalPrice * 3;
-    const breakfastIncluded = Math.random() > 0.7;
-    const airportShuttle = Math.random() > 0.5;
-    
-    results.push({
-      id: `hotel_${index}`,
-      name,
-      stars,
-      distance,
-      pricePerNight: finalPrice,
-      totalPrice,
+    {
+      id: 'hotel_1',
+      name: 'Grand Berlin Hotel',
+      stars: 4,
+      distance: 5.1,
+      pricePerNight: 115,
+      totalPrice: 345,
       selected: false,
-      within5km: distance <= 5,
-      threeStarPlus: stars >= 3,
-      breakfastIncluded,
-      airportShuttle,
-      convenienceScore: (10 - distance) + stars // Higher score for closer and better hotels
-    });
-  });
-  
-  return results;
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: false,
+      airportShuttle: true,
+      convenienceScore: 8.9
+    },
+    {
+      id: 'hotel_2',
+      name: 'City Inn Berlin',
+      stars: 3,
+      distance: 7.4,
+      pricePerNight: 56,
+      totalPrice: 168,
+      selected: false,
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: false,
+      convenienceScore: 5.6
+    },
+    {
+      id: 'hotel_3',
+      name: 'River View Hotel',
+      stars: 4,
+      distance: 2.8,
+      pricePerNight: 151,
+      totalPrice: 453,
+      selected: false,
+      within5km: true,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: true,
+      convenienceScore: 11.2
+    },
+    {
+      id: 'hotel_4',
+      name: 'Berlin Plaza',
+      stars: 3,
+      distance: 6.0,
+      pricePerNight: 48,
+      totalPrice: 144,
+      selected: false,
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: false,
+      airportShuttle: false,
+      convenienceScore: 7.0
+    },
+    {
+      id: 'hotel_5',
+      name: 'Central Station Hotel',
+      stars: 5,
+      distance: 0.9,
+      pricePerNight: 190,
+      totalPrice: 570,
+      selected: false,
+      within5km: true,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: true,
+      convenienceScore: 14.1
+    },
+    {
+      id: 'hotel_6',
+      name: 'Park Luxury Berlin',
+      stars: 4,
+      distance: 2.7,
+      pricePerNight: 145,
+      totalPrice: 435,
+      selected: false,
+      within5km: true,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: true,
+      convenienceScore: 11.3
+    },
+    {
+      id: 'hotel_7',
+      name: 'Business Tower',
+      stars: 5,
+      distance: 7.3,
+      pricePerNight: 151,
+      totalPrice: 453,
+      selected: false,
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: true,
+      convenienceScore: 7.7
+    },
+    {
+      id: 'hotel_8',
+      name: 'Conference Center Hotel',
+      stars: 2,
+      distance: 1.5,
+      pricePerNight: 86,
+      totalPrice: 258,
+      selected: false,
+      within5km: true,
+      threeStarPlus: false,
+      breakfastIncluded: false,
+      airportShuttle: false,
+      convenienceScore: 8.5
+    },
+    {
+      id: 'hotel_9',
+      name: 'Modern Stay Berlin',
+      stars: 2,
+      distance: 1.0,
+      pricePerNight: 127,
+      totalPrice: 381,
+      selected: false,
+      within5km: true,
+      threeStarPlus: false,
+      breakfastIncluded: true,
+      airportShuttle: false,
+      convenienceScore: 8.0
+    },
+    {
+      id: 'hotel_10',
+      name: 'Airport Suites',
+      stars: 5,
+      distance: 9.9,
+      pricePerNight: 123,
+      totalPrice: 369,
+      selected: false,
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: true,
+      convenienceScore: 5.1
+    },
+    {
+      id: 'hotel_11',
+      name: 'Historic District Inn',
+      stars: 4,
+      distance: 9.0,
+      pricePerNight: 110,
+      totalPrice: 330,
+      selected: false,
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: false,
+      airportShuttle: false,
+      convenienceScore: 5.0
+    },
+    {
+      id: 'hotel_12',
+      name: 'Tech Park Residence',
+      stars: 4,
+      distance: 7.3,
+      pricePerNight: 82,
+      totalPrice: 246,
+      selected: false,
+      within5km: false,
+      threeStarPlus: true,
+      breakfastIncluded: true,
+      airportShuttle: false,
+      convenienceScore: 6.7
+    }
+  ];
+
+  return hotels;
 };

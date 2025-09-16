@@ -93,7 +93,7 @@ const Task3 = () => {
                    (selectedHotel?.totalPrice || 0) + 
                    (selectedTransport?.price || 0);
 
-  const remainingBudget = 1000 - totalCost;
+  const remainingBudget = 1380 - totalCost; // Changed to $1,380
 
   const handleOutboundFlightSelect = (flight) => {
     setSelectedOutboundFlight(flight);

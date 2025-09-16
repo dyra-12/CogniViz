@@ -105,16 +105,16 @@ const InstructionModal = ({ taskNumber, onClose }) => {
       case 3:
         return {
           title: 'Task 3: Plan Your Business Trip to Berlin',
-          goal: 'Plan a 4-day, 3-night business trip to Berlin with a tight budget of $1,000. Book flights, hotel, transportation, and schedule meetings with multiple complex constraints.',
+          goal: 'Plan a 4-day, 3-night business trip to Berlin with a budget of $1,380. Book flights, hotel, transportation, and schedule meetings with multiple complex constraints.',
           steps: [
             'Book a Flight: Choose round-trip flight from NY to Berlin that arrives before 15:00 on the same day and departs after 12:00 on Day 4',
             'Book a Hotel: Choose a 3+ star hotel within 5km of Conference Center for 3 nights',
             'Select Transportation: Choose how you will get around Berlin',
             'Schedule Meetings: Drag all five meetings into the calendar respecting complex time constraints and dependencies',
-            'Manage Budget: Keep total cost under $1,000 - careful planning required!',
+            'Manage Budget: Keep total cost under $1,380 - careful planning required!',
             'Finalize your trip when everything is arranged'
           ],
-          budgetWarning: '⚠️ Tight budget of $1,000 - plan carefully!'
+          budgetWarning: '⚠️ Budget: $1,380 - plan carefully!'
         };
         default:
         return { title: '', goal: '', steps: [] };

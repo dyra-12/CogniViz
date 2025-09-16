@@ -1,6 +1,6 @@
 export const generateFlights = () => {
   const flights = [
-    // Outbound flights (NY to Berlin)
+    // Outbound flights (NY to Berlin) - Exact data as specified
     {
       id: 'out_1',
       type: 'outbound',
@@ -62,7 +62,7 @@ export const generateFlights = () => {
       convenienceScore: 4
     },
 
-    // Return flights (Berlin to NY)
+    // Return flights (Berlin to NY) - Exact data as specified
     {
       id: 'in_1',
       type: 'return',

@@ -61,7 +61,7 @@ const BudgetSummary = ({ flight, hotel, transport, total, remaining }) => {
       </Remaining>
       
       <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
-        Total Budget: $1,000
+        Total Budget: $1,380
       </div>
     </BudgetContainer>
   );

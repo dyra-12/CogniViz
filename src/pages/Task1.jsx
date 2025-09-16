@@ -53,10 +53,27 @@ const Input = styled.input`
 const Select = styled.select`
   ${Input} // Inherits all styles from Input
   appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right ${props => props.theme.spacing[3]} center;
   background-size: 1em;
+  /* Hide default arrow in IE/Edge */
+  &::-ms-expand {
+    display: none;
+  }
+  /* Hide default arrow in Firefox */
+  &::-moz-focus-inner {
+    border: 0;
+  }
+  &::-webkit-search-decoration,
+  &::-webkit-search-cancel-button,
+  &::-webkit-search-results-button,
+  &::-webkit-search-results-decoration {
+    display: none;
+  }
 `;
 
 const ErrorText = styled.span`
@@ -141,7 +158,10 @@ const Task1 = () => {
         if (!value.trim()) error = 'City is required';
         break;
       case 'zipCode':
-        if (!/^\d{5}(-\d{4})?$/.test(value)) error = 'Please enter a valid ZIP code';
+        // Accept US ZIP (5 or 9 digits) or Indian PIN (6 digits)
+        if (!/^\d{5}(-\d{4})?$/.test(value) && !/^\d{6}$/.test(value)) {
+          error = 'Please enter a valid ZIP/Postal code';
+        }
         break;
       default:
         break;
@@ -167,8 +187,8 @@ const Task1 = () => {
       newErrors.city = 'City is required';
       isValid = false;
     }
-    if (!/^\d{5}(-\d{4})?$/.test(formData.zipCode)) {
-      newErrors.zipCode = 'Please enter a valid ZIP code';
+    if (!/^\d{5}(-\d{4})?$/.test(formData.zipCode) && !/^\d{6}$/.test(formData.zipCode)) {
+      newErrors.zipCode = 'Please enter a valid ZIP/Postal code';
       isValid = false;
     }
 
@@ -301,6 +321,43 @@ const Task1 = () => {
               <option value="TX">Texas</option>
               <option value="FL">Florida</option>
               <option value="IL">Illinois</option>
+              <option disabled>──────────</option>
+              <option value="AP">Andhra Pradesh</option>
+              <option value="AR">Arunachal Pradesh</option>
+              <option value="AS">Assam</option>
+              <option value="BR">Bihar</option>
+              <option value="CT">Chhattisgarh</option>
+              <option value="GA">Goa</option>
+              <option value="GJ">Gujarat</option>
+              <option value="HR">Haryana</option>
+              <option value="HP">Himachal Pradesh</option>
+              <option value="JH">Jharkhand</option>
+              <option value="KA">Karnataka</option>
+              <option value="KL">Kerala</option>
+              <option value="MP">Madhya Pradesh</option>
+              <option value="MH">Maharashtra</option>
+              <option value="MN">Manipur</option>
+              <option value="ML">Meghalaya</option>
+              <option value="MZ">Mizoram</option>
+              <option value="NL">Nagaland</option>
+              <option value="OR">Odisha</option>
+              <option value="PB">Punjab</option>
+              <option value="RJ">Rajasthan</option>
+              <option value="SK">Sikkim</option>
+              <option value="TN">Tamil Nadu</option>
+              <option value="TG">Telangana</option>
+              <option value="TR">Tripura</option>
+              <option value="UP">Uttar Pradesh</option>
+              <option value="UT">Uttarakhand</option>
+              <option value="WB">West Bengal</option>
+              <option value="AN">Andaman and Nicobar Islands</option>
+              <option value="CH">Chandigarh</option>
+              <option value="DN">Dadra and Nagar Haveli and Daman and Diu</option>
+              <option value="DL">Delhi</option>
+              <option value="JK">Jammu and Kashmir</option>
+              <option value="LA">Ladakh</option>
+              <option value="LD">Lakshadweep</option>
+              <option value="PY">Puducherry</option>
             </Select>
           </FormGroup>
         </TwoColumnGrid>
@@ -333,6 +390,7 @@ const Task1 = () => {
               <option value="US">United States</option>
               <option value="CA">Canada</option>
               <option value="UK">United Kingdom</option>
+              <option value="IN">India</option>
             </Select>
           </FormGroup>
         </TwoColumnGrid>

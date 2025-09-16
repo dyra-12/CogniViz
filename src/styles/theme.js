@@ -9,6 +9,18 @@ export const theme = {
     light: '#f8f9fa',
     dark: '#212529',
     white: '#ffffff',
+    gray: {
+      100: '#f8f9fa',
+      200: '#e9ecef',
+      300: '#dee2e6',
+      400: '#ced4da',
+      500: '#adb5bd',
+      600: '#6c757d',
+      700: '#495057',
+      800: '#343a40',
+      900: '#212529',
+    },
+    // Keep flat keys for backward compatibility
     gray100: '#f8f9fa',
     gray200: '#e9ecef',
     gray300: '#dee2e6',

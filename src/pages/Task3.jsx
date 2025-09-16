@@ -42,6 +42,9 @@ const Sidebar = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${props => props.theme.spacing[6]};
+  position: sticky;
+  top: ${props => props.theme.spacing[8]};
+  height: fit-content;
 `;
 
 const CompletionMessage = styled.div`
@@ -330,7 +333,7 @@ const Task3 = () => {
             onFlightSelect={handleReturnFlightSelect}
             selectedFlight={selectedReturnFlight}
             title="Return Flight (Berlin → NY)"
-            constraint="Must depart after 12:00 on Day 4"
+            constraint="Must depart after 12:00 on the next day"
           />
           
           <HotelBooking
@@ -368,7 +371,6 @@ const Task3 = () => {
             >
               Finalize Trip
             </Button>
-            
             {validationErrors.length > 0 && (
               <div style={{ marginTop: '1rem' }}>
                 <h4>Issues to resolve:</h4>

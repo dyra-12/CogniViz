@@ -11,7 +11,7 @@ const HotelContainer = styled.div`
   margin-bottom: ${props => props.theme.spacing[6]};
 `;
 
-// Table elements
+
 const Th = styled.th`
   text-align: left;
   padding: 0.5rem;

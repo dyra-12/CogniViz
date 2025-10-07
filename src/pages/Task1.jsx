@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import Button from '../components/Button';
 import useLogger from '../hooks/useLogger';
@@ -105,6 +105,36 @@ const TwoColumnGrid = styled.div`
 
 // Main Component
 const Task1 = () => {
+  // --- Metrics State ---
+  const [metrics, setMetrics] = useState({
+    field_focus_time: {},
+    field_order: [],
+    field_order_method: [], // 'tab' or 'click'
+    field_changes: {},
+    keystroke_timestamps: {},
+    backspace_count: { total: 0 },
+    paste_event: {},
+    mouse_click_locations: [],
+    clicks_to_submit: 0,
+    hover_time: {},
+  // zip_code_attempts removed
+    shipping_method_switch: false,
+    start_time: Date.now(),
+    end_time: null,
+    total_time: null,
+    success: false,
+    error_count: 0,
+  });
+  // Track if a field has been blurred at least once
+  const blurredOnceRef = useRef({});
+  // Track last value for each field
+  const lastValueRef = useRef({});
+  // For focus timing
+  const focusStartRef = useRef({});
+  // For hover timing
+  const hoverStartRef = useRef({});
+  // For tracking last shipping method
+  const lastShippingMethod = useRef('standard');
   const { log } = useLogger();
   const { completeCurrentTask } = useTaskProgress(); // Add this hook
 
@@ -128,8 +158,31 @@ const Task1 = () => {
   }, [log]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Only count as a field change if the field has been blurred at least once (i.e., user revisited and changed it)
+    if (blurredOnceRef.current[name]) {
+      if (lastValueRef.current[name] !== undefined && lastValueRef.current[name] !== value) {
+        setMetrics(prev => ({
+          ...prev,
+          field_changes: {
+            ...prev.field_changes,
+            [name]: (prev.field_changes[name] || 0) + 1
+          }
+        }));
+      }
+    }
+    // Always update last value
+    lastValueRef.current[name] = value;
+
+    // ZIP code attempts removed
+
+    // Shipping method switch
+    if (name === 'shippingMethod' && value !== lastShippingMethod.current) {
+      setMetrics(prev => ({ ...prev, shipping_method_switch: true }));
+      lastShippingMethod.current = value;
+    }
 
     if (isTouched[name]) {
       log('form_field_interaction', { fieldName: name, value, action: 'change' });
@@ -139,9 +192,109 @@ const Task1 = () => {
   const handleBlur = (e) => {
     const { name, value } = e.target;
     setIsTouched(prev => ({ ...prev, [name]: true }));
-    
     validateField(name, value);
     log('form_field_interaction', { fieldName: name, value, action: 'blur' });
+    // Mark as blurred at least once
+    blurredOnceRef.current[name] = true;
+    // Store last value on blur
+    lastValueRef.current[name] = value;
+    // Focus time
+    if (focusStartRef.current[name]) {
+      const duration = Date.now() - focusStartRef.current[name];
+      setMetrics(prev => ({
+        ...prev,
+        field_focus_time: {
+          ...prev.field_focus_time,
+          [name]: (prev.field_focus_time[name] || 0) + duration / 1000 // seconds
+        }
+      }));
+      focusStartRef.current[name] = null;
+    }
+  };
+
+  const handleFocus = (e, method = 'click') => {
+    const { name } = e.target;
+    // Focus start time
+    focusStartRef.current[name] = Date.now();
+    // Field order
+    setMetrics(prev => ({
+      ...prev,
+      field_order: prev.field_order.includes(name) ? prev.field_order : [...prev.field_order, name],
+      field_order_method: prev.field_order.includes(name) ? prev.field_order_method : [...prev.field_order_method, method],
+    }));
+  };
+  // Keystroke and backspace tracking
+  const handleKeyDown = (e) => {
+    const { name } = e.target;
+    // Keystroke timestamps
+    setMetrics(prev => ({
+      ...prev,
+      keystroke_timestamps: {
+        ...prev.keystroke_timestamps,
+        [name]: [...(prev.keystroke_timestamps[name] || []), Date.now()]
+      }
+    }));
+    // Backspace count
+    if (e.key === 'Backspace') {
+      setMetrics(prev => ({
+        ...prev,
+        backspace_count: {
+          ...prev.backspace_count,
+          total: (prev.backspace_count.total || 0) + 1,
+          [name]: (prev.backspace_count[name] || 0) + 1
+        }
+      }));
+    }
+  };
+
+  // Paste event
+  const handlePaste = (e) => {
+    const { name } = e.target;
+    setMetrics(prev => ({
+      ...prev,
+      paste_event: {
+        ...prev.paste_event,
+        [name]: true
+      }
+    }));
+  };
+
+  // Mouse click location
+  useEffect(() => {
+    const handleClick = (e) => {
+      setMetrics(prev => ({
+        ...prev,
+        mouse_click_locations: [
+          ...prev.mouse_click_locations,
+          { x: e.clientX, y: e.clientY, time: Date.now() }
+        ]
+      }));
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
+  // Clicks to submit
+  const handleSubmitClick = () => {
+    setMetrics(prev => ({ ...prev, clicks_to_submit: prev.clicks_to_submit + 1 }));
+  };
+
+  // Hover time for tooltips (example for '?')
+  const handleHoverStart = (id) => {
+    hoverStartRef.current[id] = Date.now();
+  };
+  const handleHoverEnd = (id) => {
+    if (hoverStartRef.current[id]) {
+      const duration = Date.now() - hoverStartRef.current[id];
+      setMetrics(prev => ({
+        ...prev,
+        hover_time: {
+          ...prev.hover_time,
+          [id]: (prev.hover_time[id] || 0) + duration / 1000 // seconds
+        }
+      }));
+      hoverStartRef.current[id] = null;
+    }
   };
 
   const validateField = (name, value) => {
@@ -198,12 +351,33 @@ const Task1 = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
     log('form_submit_attempt', { formData });
-
+    const errorCount = Object.values(errors).filter(Boolean).length;
     if (validateForm()) {
       setTimeout(() => {
         log('form_submit_success', { formData });
+        const endTime = Date.now();
+        const totalTime = (endTime - (metrics.start_time || endTime)) / 1000; // seconds
+        // Convert all timing metrics to seconds (if not already)
+        const convertObjToSeconds = (obj) => {
+          const out = {};
+          for (const k in obj) {
+            if (typeof obj[k] === 'number') out[k] = Number(obj[k]);
+          }
+          return out;
+        };
+        const dataToSave = {
+          task1: {
+            ...metrics,
+            field_focus_time: convertObjToSeconds(metrics.field_focus_time),
+            hover_time: convertObjToSeconds(metrics.hover_time),
+            end_time: endTime,
+            total_time: totalTime,
+            success: true,
+            error_count: metrics.error_count + errorCount,
+          }
+        };
+        localStorage.setItem('task1_metrics', JSON.stringify(dataToSave));
         setIsSubmitted(true);
         setFormData({
           fullName: '',
@@ -217,9 +391,33 @@ const Task1 = () => {
         });
         setErrors({});
         setIsTouched({});
+        setMetrics({
+          field_focus_time: {},
+          field_order: [],
+          field_order_method: [],
+          field_changes: {},
+          keystroke_timestamps: {},
+          backspace_count: { total: 0 },
+          paste_event: {},
+          mouse_click_locations: [],
+          clicks_to_submit: 0,
+          hover_time: {},
+          // zip_code_attempts removed
+          shipping_method_switch: false,
+          start_time: Date.now(),
+          end_time: null,
+          total_time: null,
+          success: false,
+          error_count: 0,
+        });
       }, 1000);
     } else {
       log('form_validation_error', { errors, formData });
+      // Count errors for this attempt
+      setMetrics(prev => ({
+        ...prev,
+        error_count: prev.error_count + Object.values(errors).filter(Boolean).length
+      }));
     }
   };
 
@@ -246,7 +444,7 @@ const Task1 = () => {
     <FormContainer>
       <FormTitle>Shipping Information</FormTitle>
       
-      <form onSubmit={handleSubmit}>
+  <form onSubmit={handleSubmit}>
         <FormGroup>
           <Label htmlFor="fullName">Full Name *</Label>
           <Input
@@ -256,8 +454,12 @@ const Task1 = () => {
             value={formData.fullName}
             onChange={handleChange}
             onBlur={handleBlur}
+            onFocus={e => handleFocus(e, 'click')}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             className={errors.fullName ? 'error' : ''}
             placeholder="John Doe"
+            tabIndex={0}
           />
           {errors.fullName && <ErrorText>{errors.fullName}</ErrorText>}
         </FormGroup>
@@ -271,8 +473,12 @@ const Task1 = () => {
             value={formData.addressLine1}
             onChange={handleChange}
             onBlur={handleBlur}
+            onFocus={e => handleFocus(e, 'click')}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             className={errors.addressLine1 ? 'error' : ''}
             placeholder="123 Main St"
+            tabIndex={0}
           />
           {errors.addressLine1 && <ErrorText>{errors.addressLine1}</ErrorText>}
         </FormGroup>
@@ -286,7 +492,11 @@ const Task1 = () => {
             value={formData.addressLine2}
             onChange={handleChange}
             onBlur={handleBlur}
+            onFocus={e => handleFocus(e, 'click')}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Apt 456"
+            tabIndex={0}
           />
         </FormGroup>
 
@@ -300,8 +510,12 @@ const Task1 = () => {
               value={formData.city}
               onChange={handleChange}
               onBlur={handleBlur}
+              onFocus={e => handleFocus(e, 'click')}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               className={errors.city ? 'error' : ''}
               placeholder="New York"
+              tabIndex={0}
             />
             {errors.city && <ErrorText>{errors.city}</ErrorText>}
           </FormGroup>
@@ -314,6 +528,8 @@ const Task1 = () => {
               value={formData.state}
               onChange={handleChange}
               onBlur={handleBlur}
+              onFocus={e => handleFocus(e, 'click')}
+              tabIndex={0}
             >
               <option value="">Select State</option>
               <option value="CA">California</option>
@@ -372,8 +588,12 @@ const Task1 = () => {
               value={formData.zipCode}
               onChange={handleChange}
               onBlur={handleBlur}
+              onFocus={e => handleFocus(e, 'click')}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               className={errors.zipCode ? 'error' : ''}
               placeholder="12345"
+              tabIndex={0}
             />
             {errors.zipCode && <ErrorText>{errors.zipCode}</ErrorText>}
           </FormGroup>
@@ -386,6 +606,8 @@ const Task1 = () => {
               value={formData.country}
               onChange={handleChange}
               onBlur={handleBlur}
+              onFocus={e => handleFocus(e, 'click')}
+              tabIndex={0}
             >
               <option value="US">United States</option>
               <option value="CA">Canada</option>
@@ -406,6 +628,8 @@ const Task1 = () => {
                 checked={formData.shippingMethod === 'standard'}
                 onChange={handleChange}
                 onBlur={handleBlur}
+                onFocus={e => handleFocus(e, 'click')}
+                tabIndex={0}
                 style={{ marginRight: '0.5rem' }}
               />
               Standard (5-7 business days)
@@ -418,6 +642,8 @@ const Task1 = () => {
                 checked={formData.shippingMethod === 'express'}
                 onChange={handleChange}
                 onBlur={handleBlur}
+                onFocus={e => handleFocus(e, 'click')}
+                tabIndex={0}
                 style={{ marginRight: '0.5rem' }}
               />
               Express (2-3 business days)
@@ -430,6 +656,8 @@ const Task1 = () => {
                 checked={formData.shippingMethod === 'overnight'}
                 onChange={handleChange}
                 onBlur={handleBlur}
+                onFocus={e => handleFocus(e, 'click')}
+                tabIndex={0}
                 style={{ marginRight: '0.5rem' }}
               />
               Overnight (1 business day)
@@ -437,7 +665,7 @@ const Task1 = () => {
           </div>
         </FormGroup>
 
-        <Button type="submit" style={{ width: '100%', fontSize: '1.1rem' }}>
+        <Button type="submit" style={{ width: '100%', fontSize: '1.1rem' }} onClick={handleSubmitClick}>
           Save Shipping Information
         </Button>
       </form>

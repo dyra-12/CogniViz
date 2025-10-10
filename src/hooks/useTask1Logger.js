@@ -35,42 +35,67 @@ const useTask1Logger = () => {
 	});
 
 	// --- Internal state for field focus timing, etc. ---
-	const fieldTimers = useRef({}); // { field_name: { focusStart: ms, total: ms } }
-	const fieldBackspaces = useRef({}); // { field_name: count }
-	const fieldEdits = useRef({}); // { field_name: count }
-	const lastField = useRef(null); // for field_sequence
+			const fieldTimers = useRef({}); // { field_name: { focusStart: ms, total: ms } }
+			const fieldBackspaces = useRef({}); // { field_name: count }
+			const fieldEdits = useRef({}); // { field_name: count }
+			const lastCommittedValue = useRef({}); // { field_name: last committed value }
+			const typingTimeouts = useRef({}); // { field_name: timeoutId }
+			const lastField = useRef(null); // for field_sequence
 
 	// --- FIELD INTERACTIONS ---
-	const onFieldFocus = (field_name) => {
-		// Start timer
-		if (!fieldTimers.current[field_name]) fieldTimers.current[field_name] = { focusStart: null, total: 0 };
-		fieldTimers.current[field_name].focusStart = nowMS();
-		// Sequence
-		if (lastField.current !== field_name) {
-			dataRef.current.task_specific_metrics.field_sequence.push(field_name);
-			lastField.current = field_name;
-		}
-	};
+			const onFieldFocus = (field_name, value = '') => {
+				// Start timer
+				if (!fieldTimers.current[field_name]) fieldTimers.current[field_name] = { focusStart: null, total: 0 };
+				fieldTimers.current[field_name].focusStart = nowMS();
+				// Sequence
+				if (lastField.current !== field_name) {
+					dataRef.current.task_specific_metrics.field_sequence.push(field_name);
+					lastField.current = field_name;
+				}
+				// No-op for edit count: we only check on blur or pause
+			};
 
-	const onFieldBlur = (field_name) => {
-		const timer = fieldTimers.current[field_name];
-		if (timer && timer.focusStart) {
-			timer.total += nowMS() - timer.focusStart;
-			timer.focusStart = null;
-		}
-		// Update field_interactions array
-		updateFieldInteraction(field_name);
-	};
+			const onFieldBlur = (field_name, value = '') => {
+				const timer = fieldTimers.current[field_name];
+				if (timer && timer.focusStart) {
+					timer.total += nowMS() - timer.focusStart;
+					timer.focusStart = null;
+				}
+				// On blur, check for edit
+				checkAndCountEdit(field_name, value);
+				// Clear any pending debounce
+				if (typingTimeouts.current[field_name]) {
+					clearTimeout(typingTimeouts.current[field_name]);
+					typingTimeouts.current[field_name] = null;
+				}
+				updateFieldInteraction(field_name);
+			};
 
-	const onFieldChange = (field_name) => {
-		if (!fieldEdits.current[field_name]) fieldEdits.current[field_name] = 0;
-		fieldEdits.current[field_name]++;
-		// Special: zip_code
-		if (field_name === 'zipCode') {
-			dataRef.current.task_specific_metrics.zip_code_corrections++;
-		}
-		updateFieldInteraction(field_name);
-	};
+			const onFieldChange = (field_name, value = '', userInitiated = true) => {
+				if (!userInitiated) return;
+				// Debounce: if user pauses for 1.5s, count as edit if value changed
+				if (typingTimeouts.current[field_name]) {
+					clearTimeout(typingTimeouts.current[field_name]);
+				}
+				typingTimeouts.current[field_name] = setTimeout(() => {
+					checkAndCountEdit(field_name, value);
+					updateFieldInteraction(field_name);
+				}, 1500);
+			};
+
+			// Helper: check if value is a new edit, and count it if so
+			function checkAndCountEdit(field_name, value) {
+				const lastVal = lastCommittedValue.current[field_name] ?? '';
+				if (value !== lastVal) {
+					if (!fieldEdits.current[field_name]) fieldEdits.current[field_name] = 0;
+					fieldEdits.current[field_name]++;
+					// Special: zip_code
+					if (field_name === 'zipCode') {
+						dataRef.current.task_specific_metrics.zip_code_corrections++;
+					}
+					lastCommittedValue.current[field_name] = value;
+				}
+			}
 
 	const onFieldBackspace = (field_name) => {
 		if (!fieldBackspaces.current[field_name]) fieldBackspaces.current[field_name] = 0;
@@ -167,12 +192,12 @@ const useTask1Logger = () => {
 
 	// --- FIELD EVENT HANDLERS ---
 	// These are to be attached to each field in Task1.jsx
-	const getFieldProps = (field_name) => ({
-		onFocus: () => { onFieldFocus(field_name); },
-		onBlur: () => { onFieldBlur(field_name); },
-		onChange: () => { onFieldChange(field_name); },
-		onKeyDown: (e) => { if (e.key === 'Backspace') onFieldBackspace(field_name); },
-	});
+			const getFieldProps = (field_name, value = '') => ({
+				onFocus: (e) => { onFieldFocus(field_name, e?.target?.value ?? value); },
+				onBlur: (e) => { onFieldBlur(field_name, e?.target?.value ?? value); },
+				onChange: (e) => { onFieldChange(field_name, e?.target?.value ?? value, true); },
+				onKeyDown: (e) => { if (e.key === 'Backspace') onFieldBackspace(field_name); },
+			});
 
 	return {
 		getFieldProps,

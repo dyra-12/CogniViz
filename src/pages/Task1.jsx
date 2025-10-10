@@ -139,7 +139,7 @@ const Task1 = () => {
     if (type === 'radio' && name === 'shippingMethod') {
       logger.onShippingMethodChange();
     }
-    logger.getFieldProps(name).onChange();
+    logger.getFieldProps(name, value).onChange(e);
     if (isTouched[name]) {
       log('form_field_interaction', { fieldName: name, value, action: 'change' });
     }
@@ -149,18 +149,18 @@ const Task1 = () => {
     const { name, value } = e.target;
     setIsTouched(prev => ({ ...prev, [name]: true }));
     validateField(name, value);
-    logger.getFieldProps(name).onBlur();
+    logger.getFieldProps(name, value).onBlur(e);
     log('form_field_interaction', { fieldName: name, value, action: 'blur' });
   };
 
   const handleFocus = (e) => {
-    const { name } = e.target;
-    logger.getFieldProps(name).onFocus();
+    const { name, value } = e.target;
+    logger.getFieldProps(name, value).onFocus(e);
   };
 
   const handleKeyDown = (e) => {
-    const { name } = e.target;
-    logger.getFieldProps(name).onKeyDown(e);
+    const { name, value } = e.target;
+    logger.getFieldProps(name, value).onKeyDown(e);
   };
 
   const validateField = (name, value) => {

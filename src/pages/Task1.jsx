@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import useTask1Logger from '../hooks/useTask1Logger';
+import { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import Button from '../components/Button';
 import useLogger from '../hooks/useLogger';
+import useTask1Logger from '../hooks/useTask1Logger';
 import { useTaskProgress } from '../contexts/TaskProgressContext'; // Add this import
 
 // Styled Components for the form
@@ -107,7 +107,9 @@ const TwoColumnGrid = styled.div`
 // Main Component
 const Task1 = () => {
   const { log } = useLogger();
-  const { completeCurrentTask } = useTaskProgress(); // Add this hook
+  const { completeCurrentTask } = useTaskProgress();
+  const logger = useTask1Logger();
+  const formRef = useRef();
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -119,21 +121,25 @@ const Task1 = () => {
     country: 'US',
     shippingMethod: 'standard'
   });
-  // Task 1 logger hook
-  const task1Logger = useTask1Logger();
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isTouched, setIsTouched] = useState({});
 
   // Log initial view
+  // Mark start when form becomes visible (instructions disappear)
   useEffect(() => {
+    logger.markStart();
     log('form_view', { formName: 'shipping_info' });
   }, [log]);
 
+  // Enhanced handlers to integrate logger
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    task1Logger.logger.onChange(e);
+    if (type === 'radio' && name === 'shippingMethod') {
+      logger.onShippingMethodChange();
+    }
+    logger.getFieldProps(name).onChange();
     if (isTouched[name]) {
       log('form_field_interaction', { fieldName: name, value, action: 'change' });
     }
@@ -143,20 +149,18 @@ const Task1 = () => {
     const { name, value } = e.target;
     setIsTouched(prev => ({ ...prev, [name]: true }));
     validateField(name, value);
-    task1Logger.logger.onBlur(e);
+    logger.getFieldProps(name).onBlur();
     log('form_field_interaction', { fieldName: name, value, action: 'blur' });
   };
 
   const handleFocus = (e) => {
-    task1Logger.logger.onFocus(e);
+    const { name } = e.target;
+    logger.getFieldProps(name).onFocus();
   };
 
   const handleKeyDown = (e) => {
-    task1Logger.logger.onKeyDown(e);
-  };
-
-  const handlePaste = (e) => {
-    task1Logger.logger.onPaste(e);
+    const { name } = e.target;
+    logger.getFieldProps(name).onKeyDown(e);
   };
 
   const validateField = (name, value) => {
@@ -183,9 +187,6 @@ const Task1 = () => {
     }
 
     setErrors(prev => ({ ...prev, [name]: error }));
-    if (error) {
-      task1Logger.onError();
-    }
     return !error;
   };
 
@@ -220,7 +221,8 @@ const Task1 = () => {
     if (validateForm()) {
       setTimeout(() => {
         log('form_submit_success', { formData });
-        task1Logger.onSubmit();
+        logger.markEnd(true);
+        logger.saveToLocalStorage();
         setIsSubmitted(true);
         setFormData({
           fullName: '',
@@ -236,6 +238,7 @@ const Task1 = () => {
         setIsTouched({});
       }, 1000);
     } else {
+      logger.logError();
       log('form_validation_error', { errors, formData });
     }
   };
@@ -275,7 +278,6 @@ const Task1 = () => {
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
             className={errors.fullName ? 'error' : ''}
             placeholder="John Doe"
           />
@@ -293,7 +295,6 @@ const Task1 = () => {
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
             className={errors.addressLine1 ? 'error' : ''}
             placeholder="123 Main St"
           />
@@ -311,7 +312,6 @@ const Task1 = () => {
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
             placeholder="Apt 456"
           />
         </FormGroup>
@@ -328,7 +328,6 @@ const Task1 = () => {
               onBlur={handleBlur}
               onFocus={handleFocus}
               onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
               className={errors.city ? 'error' : ''}
               placeholder="New York"
             />
@@ -344,8 +343,6 @@ const Task1 = () => {
               onChange={handleChange}
               onBlur={handleBlur}
               onFocus={handleFocus}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
             >
               <option value="">Select State</option>
               <option value="CA">California</option>
@@ -406,7 +403,6 @@ const Task1 = () => {
               onBlur={handleBlur}
               onFocus={handleFocus}
               onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
               className={errors.zipCode ? 'error' : ''}
               placeholder="12345"
             />
@@ -422,8 +418,6 @@ const Task1 = () => {
               onChange={handleChange}
               onBlur={handleBlur}
               onFocus={handleFocus}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
             >
               <option value="US">United States</option>
               <option value="CA">Canada</option>
@@ -445,8 +439,6 @@ const Task1 = () => {
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onFocus={handleFocus}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
                 style={{ marginRight: '0.5rem' }}
               />
               Standard (5-7 business days)
@@ -460,8 +452,6 @@ const Task1 = () => {
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onFocus={handleFocus}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
                 style={{ marginRight: '0.5rem' }}
               />
               Express (2-3 business days)
@@ -475,8 +465,6 @@ const Task1 = () => {
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onFocus={handleFocus}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
                 style={{ marginRight: '0.5rem' }}
               />
               Overnight (1 business day)

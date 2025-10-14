@@ -90,16 +90,20 @@ const InstructionModal = ({ taskNumber, onClose }) => {
         };
       case 2:
         return {
-          title: 'Task 2: Find the Perfect Laptop',
-          goal: 'Use the filters to find a laptop that meets ALL of these criteria: Price between $800-$1200, Brand: Dell OR Lenovo, Minimum 4-star rating, At least 16GB RAM. Then add it to cart.',
+          title: 'Task 2: Find a Laptop Matching Specific Requirements',
+          goal: 'Find and select a laptop that meets all of the following criteria using the filter system.',
           steps: [
-            'Use the filter panel on the left to set your criteria',
-            'Price: Set range between $800 and $1200',
-            'Brand: Check both "Dell" and "Lenovo"',
-            'Rating: Set minimum to 4 stars',
-            'RAM: Select "16GB" or higher',
-            'Choose one laptop from the filtered results',
-            'Click "Add to Cart" and then "Proceed to Checkout"'
+            'Price: Between $800 and $1200',
+            'Brand: Dell or Lenovo (select both)',
+            'Rating: 4 stars or higher',
+            'RAM: 16GB or more',
+            '---',
+            'Steps to Complete:',
+            '• Use the filter panel on the left side to set each requirement',
+            '• Apply all four filters until only matching laptops remain',
+            '• Hover over any laptop card to see detailed specifications',
+            '• Click "Add to Cart" on any laptop that meets all criteria',
+            '• Click "Proceed to Checkout" to complete the task'
           ]
         };
       case 3:

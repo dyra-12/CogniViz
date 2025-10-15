@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import useTask2Logger from '../hooks/useTask2Logger';
 import styled from 'styled-components';
 import { products, getUniqueBrands, getUniqueRAM } from '../data/products';
 import ProductCard from '../components/ProductCard';
@@ -107,6 +108,11 @@ const Sidebar = styled.div`
 const Task2 = () => {
   const { log } = useLogger();
   const { completeCurrentTask } = useTaskProgress();
+  const logger = useTask2Logger();
+  // Expose logger globally for ProductCard click precision
+  if (typeof window !== 'undefined') {
+    window.__task2Logger = logger;
+  }
   const brands = getUniqueBrands();
   const rams = getUniqueRAM();
   
@@ -127,6 +133,7 @@ const Task2 = () => {
   // Log initial view
   useEffect(() => {
     log('catalog_view', { totalProducts: products.length });
+    logger.markStart();
   }, [log]);
 
   // Filter and sort products
@@ -176,21 +183,23 @@ const Task2 = () => {
     setFilteredProducts(result);
   }, [filters]);
 
-  const handleFilterChange = (filterType, value, isChecked = null) => {
+  const handleFilterChange = (filterType, value, isChecked = null, action = null) => {
     const previousFilters = { ...filters };
     let newValue = value;
-
+    let filterAction = action;
+    if (!filterAction) {
+      filterAction = (filterType === 'brands' || filterType === 'rams') ? 'checkbox_click' : (filterType === 'minPrice' || filterType === 'maxPrice') ? 'slider_drag' : 'dropdown_select';
+    }
     if (filterType === 'brands' || filterType === 'rams') {
       newValue = isChecked 
         ? [...filters[filterType], value]
         : filters[filterType].filter(item => item !== value);
     }
-
+    logger.logFilterUse(filterType, filterAction, previousFilters[filterType], newValue);
     setFilters(prev => ({
       ...prev,
       [filterType]: newValue
     }));
-
     log('filter_apply', {
       filterType,
       value: newValue,
@@ -199,6 +208,7 @@ const Task2 = () => {
   };
 
   const handleClearFilters = () => {
+    logger.logFilterReset();
     log('filters_clear', { previousFilters: filters });
     setFilters({
       minPrice: 0,
@@ -225,6 +235,7 @@ const Task2 = () => {
       category: product.category,
       price: product.price
     });
+    // Optionally: logger.logProductClick(product.id);
   };
 
   const handleAddToCart = (product) => {
@@ -233,7 +244,6 @@ const Task2 = () => {
     const meetsBrand = ['Dell', 'Lenovo'].includes(product.brand);
     const meetsRating = product.rating >= 4;
     const meetsRAM = ['16GB', '32GB', '64GB'].includes(product.ram);
-    
     if (!meetsPrice || !meetsBrand || !meetsRating || !meetsRAM) {
       log('add_to_cart_failed', {
         productId: product.id,
@@ -242,15 +252,17 @@ const Task2 = () => {
         meetsRating,
         meetsRAM
       });
+      logger.logFilterError();
       return;
     }
-
     setSelectedProduct(product);
     log('add_to_cart', {
       productId: product.id,
       productName: product.name,
       price: product.price
     });
+    logger.markEnd();
+    logger.saveToLocalStorage(true);
     setCheckoutStep('cart');
   };
 
@@ -295,6 +307,9 @@ const Task2 = () => {
     });
     completeCurrentTask();
   };
+
+  // Product hover/click logging for exploration
+  // Attach these to ProductCard via props if needed
 
   // Checkout UI steps
   if (checkoutStep === 'cart') {
@@ -360,6 +375,8 @@ const Task2 = () => {
                 product={product}
                 onProductClick={handleProductClick}
                 onAddToCart={handleAddToCart}
+                onProductHoverStart={() => logger.logProductHoverStart(product.id)}
+                onProductHoverEnd={() => logger.logProductHoverEnd(product.id)}
               />
             ))}
           </ProductsGrid>

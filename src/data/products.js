@@ -31,25 +31,82 @@ const generateProducts = () => {
     };
   });
 
-  // Add the specific Lenovo laptop as the 25th product
-  products.push({
-    id: 'laptop_lenovo_special',
-    name: 'Lenovo ThinkPad X1 Carbon',
-    description: 'Premium business laptop with Intel i7 processor, 16GB RAM, and 512GB SSD. Excellent build quality and performance.',
-    price: 950,
-    originalPrice: 1199,
-    brand: 'Lenovo',
-    category: 'Laptops',
-    cpu: 'Intel i7',
-    ram: '16GB',
-    storage: '512GB SSD',
-    gpu: 'Integrated',
-    rating: 4.0,
-    reviewCount: 147,
-    imageUrl: 'https://picsum.photos/300/200?random=250',
-    inStock: true,
-    screenSize: '14 inch'
-  });
+
+  // Add 4 specific products that meet the Task 2 criteria
+  products.push(
+    {
+      id: 'laptop_lenovo_special',
+      name: 'Lenovo ThinkPad X1 Carbon',
+      description: 'Premium business laptop with Intel i7 processor, 16GB RAM, and 512GB SSD. Excellent build quality and performance.',
+      price: 950,
+      originalPrice: 1199,
+      brand: 'Lenovo',
+      category: 'Laptops',
+      cpu: 'Intel i7',
+      ram: '16GB',
+      storage: '512GB SSD',
+      gpu: 'Integrated',
+      rating: 4.0,
+      reviewCount: 147,
+      imageUrl: 'https://picsum.photos/300/200?random=250',
+      inStock: true,
+      screenSize: '14 inch'
+    },
+    {
+      id: 'laptop_dell_xps_15',
+      name: 'Dell XPS 15',
+      description: 'High-end Dell laptop with Intel i7, 32GB RAM, 1TB SSD, and NVIDIA GTX 1650. Great for professionals.',
+      price: 1199,
+      originalPrice: 1399,
+      brand: 'Dell',
+      category: 'Laptops',
+      cpu: 'Intel i7',
+      ram: '32GB',
+      storage: '1TB SSD',
+      gpu: 'NVIDIA GTX 1650',
+      rating: 4.5,
+      reviewCount: 210,
+      imageUrl: 'https://picsum.photos/300/200?random=251',
+      inStock: true,
+      screenSize: '15 inch'
+    },
+    {
+      id: 'laptop_dell_inspiron_16',
+      name: 'Dell Inspiron 16',
+      description: 'Reliable Dell laptop with AMD Ryzen 7, 16GB RAM, 512GB SSD, and Radeon graphics.',
+      price: 899,
+      originalPrice: 1099,
+      brand: 'Dell',
+      category: 'Laptops',
+      cpu: 'AMD Ryzen 7',
+      ram: '16GB',
+      storage: '512GB SSD',
+      gpu: 'AMD Radeon RX 6600',
+      rating: 4.2,
+      reviewCount: 98,
+      imageUrl: 'https://picsum.photos/300/200?random=252',
+      inStock: true,
+      screenSize: '16 inch'
+    },
+    {
+      id: 'laptop_lenovo_yoga_7i',
+      name: 'Lenovo Yoga 7i',
+      description: 'Versatile Lenovo 2-in-1 laptop with Intel i7, 16GB RAM, 512GB SSD, and touch display.',
+      price: 1050,
+      originalPrice: 1299,
+      brand: 'Lenovo',
+      category: 'Laptops',
+      cpu: 'Intel i7',
+      ram: '16GB',
+      storage: '512GB SSD',
+      gpu: 'Integrated',
+      rating: 4.3,
+      reviewCount: 120,
+      imageUrl: 'https://picsum.photos/300/200?random=253',
+      inStock: true,
+      screenSize: '14 inch'
+    }
+  );
 
   return products;
 };

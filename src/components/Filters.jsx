@@ -201,7 +201,15 @@ const Filters = ({
     <FiltersContainer>
       <FilterTitle>
         Filters
-        <ClearButton onClick={onClearFilters}>
+        <ClearButton onClick={e => {
+          if (typeof window !== 'undefined' && window.__task2Logger) {
+            const rect = e.target.getBoundingClientRect();
+            const click_pos = { x: e.clientX, y: e.clientY };
+            const center_pos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            window.__task2Logger.logClickPrecision('clear_filters', click_pos, center_pos);
+          }
+          onClearFilters();
+        }}>
           Clear All
         </ClearButton>
       </FilterTitle>
@@ -250,7 +258,15 @@ const Filters = ({
               <CheckboxInput
                 type="checkbox"
                 checked={filters.brands.includes(brand)}
-                onChange={(e) => onFilterChange('brands', brand, e.target.checked)}
+                onChange={(e) => {
+                  if (typeof window !== 'undefined' && window.__task2Logger) {
+                    const rect = e.target.getBoundingClientRect();
+                    const click_pos = { x: e.clientX, y: e.clientY };
+                    const center_pos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                    window.__task2Logger.logClickPrecision('brand_checkbox', click_pos, center_pos);
+                  }
+                  onFilterChange('brands', brand, e.target.checked);
+                }}
               />
               {brand}
             </CheckboxLabel>
@@ -266,7 +282,15 @@ const Filters = ({
             <StarButton
               key={rating}
               active={filters.minRating === rating}
-              onClick={() => onFilterChange('minRating', rating)}
+              onClick={e => {
+                if (typeof window !== 'undefined' && window.__task2Logger) {
+                  const rect = e.target.getBoundingClientRect();
+                  const click_pos = { x: e.clientX, y: e.clientY };
+                  const center_pos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                  window.__task2Logger.logClickPrecision('rating_star', click_pos, center_pos);
+                }
+                onFilterChange('minRating', rating);
+              }}
             >
               <span>{rating > 0 ? '★'.repeat(rating) : 'Any'}</span>
               <span>{rating > 0 ? '& up' : 'rating'}</span>
@@ -284,7 +308,15 @@ const Filters = ({
               <CheckboxInput
                 type="checkbox"
                 checked={filters.rams.includes(ram)}
-                onChange={(e) => onFilterChange('rams', ram, e.target.checked)}
+                onChange={(e) => {
+                  if (typeof window !== 'undefined' && window.__task2Logger) {
+                    const rect = e.target.getBoundingClientRect();
+                    const click_pos = { x: e.clientX, y: e.clientY };
+                    const center_pos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                    window.__task2Logger.logClickPrecision('ram_checkbox', click_pos, center_pos);
+                  }
+                  onFilterChange('rams', ram, e.target.checked);
+                }}
               />
               {ram}
             </CheckboxLabel>
@@ -298,7 +330,15 @@ const Filters = ({
           <CheckboxInput
             type="checkbox"
             checked={filters.inStockOnly}
-            onChange={(e) => onFilterChange('inStockOnly', e.target.checked)}
+            onChange={(e) => {
+              if (typeof window !== 'undefined' && window.__task2Logger) {
+                const rect = e.target.getBoundingClientRect();
+                const click_pos = { x: e.clientX, y: e.clientY };
+                const center_pos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                window.__task2Logger.logClickPrecision('in_stock_checkbox', click_pos, center_pos);
+              }
+              onFilterChange('inStockOnly', e.target.checked);
+            }}
           />
           In Stock Only
         </CheckboxLabel>

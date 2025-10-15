@@ -129,7 +129,7 @@ const RatingText = styled.span`
 `;
 
 
-const ProductCard = ({ product, onProductClick, onAddToCart }) => {
+const ProductCard = ({ product, onProductClick, onAddToCart, onProductHoverStart, onProductHoverEnd }) => {
   const [showDetails, setShowDetails] = useState(false);
   const renderStars = (rating) =>
     Array.from({ length: 5 }, (_, index) => (
@@ -146,14 +146,27 @@ const ProductCard = ({ product, onProductClick, onAddToCart }) => {
 
   const handleAddToCart = (e) => {
     e.stopPropagation(); // prevent triggering card click
+    // Click precision logging if logger is passed as prop
+    if (typeof window !== 'undefined' && window.__task2Logger) {
+      const rect = e.target.getBoundingClientRect();
+      const click_pos = { x: e.clientX, y: e.clientY };
+      const center_pos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      window.__task2Logger.logClickPrecision('add_to_cart', click_pos, center_pos);
+    }
     if (onAddToCart) {
       onAddToCart(product);
     }
   };
 
   // Show details on hover
-  const handleMouseEnter = () => setShowDetails(true);
-  const handleMouseLeave = () => setShowDetails(false);
+  const handleMouseEnter = () => {
+    setShowDetails(true);
+    if (typeof onProductHoverStart === 'function') onProductHoverStart();
+  };
+  const handleMouseLeave = () => {
+    setShowDetails(false);
+    if (typeof onProductHoverEnd === 'function') onProductHoverEnd();
+  };
 
   return (
     <div style={{ position: 'relative', height: '100%' }} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>

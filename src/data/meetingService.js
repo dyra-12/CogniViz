@@ -57,8 +57,9 @@ export const meetings = [
     day: null,
     startTime: null,
     constraints: {
-      allowedDays: [1, 2, 3],
-      timeRange: { start: 18, end: 21 }, // Evening only (18:00-21:00)
+      // Networking must be on Day 3 between 11:00 and 15:00, 2h duration
+      allowedDays: [3],
+      timeRange: { start: 11, end: 15 }, // Day 3, 11:00-15:00 window
       priority: 'low',
       requiresRestaurantReservation: true,
       maxParticipants: 8,

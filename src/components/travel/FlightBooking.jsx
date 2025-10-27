@@ -15,8 +15,9 @@ const Title = styled.h3`
 
 const Constraint = styled.div`
   margin-bottom: ${props => props.theme.spacing[4]};
-  color: ${props => props.theme.colors.gray600};
+  color: ${props => props.theme.colors.danger};
   font-style: italic;
+  font-weight: 600;
 `;
 
 const Table = styled.table`

@@ -69,22 +69,26 @@ const MeetingItem = styled.div`
 const MeetingConstraints = styled.div`
   font-size: ${props => props.theme.fontSizes.xs};
   margin-top: ${props => props.theme.spacing[1]};
-  color: ${props => props.theme.colors.danger};
+  color: ${props => props.theme.colors.gray600};
 `;
 
 const ConstraintBadge = styled.span`
   display: inline-block;
-  background: ${props => props.theme.colors.danger}15;
-  color: ${props => props.theme.colors.danger};
-  padding: 1px 6px;
+  background: ${props => props.theme.colors.info}20;
+  color: ${props => props.theme.colors.info};
+  padding: 1px 4px;
   border-radius: 8px;
-  margin-right: 6px;
-  font-size: 0.7rem;
-  border: 1px solid ${props => props.theme.colors.danger}30;
-  font-weight: 600;
+  margin-right: 2px;
+  font-size: 0.65rem;
+  border: 1px solid ${props => props.theme.colors.info}30;
 `;
 
-const MeetingScheduler = ({ meetings, onMeetingSchedule, onRedo }) => {
+const ComplexIntro = styled.div`
+  margin-bottom: ${props => props.theme.spacing[4]};
+  color: ${props => props.theme.colors.danger};
+`;
+
+const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
   const days = [1, 2, 3, 4];
   const hours = [9, 10, 11, 12, 13, 14, 15, 16]; // 9AM-4PM
 
@@ -95,16 +99,6 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onRedo }) => {
   const handleDrop = (e, day, hour) => {
     e.preventDefault();
     const meetingId = e.dataTransfer.getData('meetingId');
-    // Prevent scheduling if the meeting would overflow the calendar hours
-    const meeting = meetings.find(m => m.id === meetingId);
-    const lastSlotEnd = hours[hours.length - 1] + 1; // e.g., hours 16 -> end 17
-    if (meeting && (hour + meeting.duration) > lastSlotEnd) {
-      // ignore the drop if it does not fit
-      // could show a toast or visual feedback here
-      console.warn(`Meeting '${meeting.title}' does not fit when starting at ${hour}:00`);
-      return;
-    }
-
     onMeetingSchedule(meetingId, day, hour);
   };
 
@@ -112,25 +106,12 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onRedo }) => {
     e.preventDefault();
   };
 
-  // Returns an object describing whether a meeting starts at this slot,
-  // or is covered by a meeting that started earlier.
   const getMeetingInSlot = (day, hour) => {
-    // Find a meeting that starts exactly at this hour
-    const startMeeting = meetings.find(m => m.scheduled && m.day === day && m.startTime === hour);
-    if (startMeeting) return { meeting: startMeeting, isStart: true };
-
-    // Otherwise find a meeting that covers this hour (started earlier and spans into this slot)
-    const covering = meetings.find(m => m.scheduled && m.day === day && m.startTime < hour && (m.startTime + m.duration) > hour);
-    if (covering) return { meeting: covering, isStart: false };
-
-    return null;
+    // Return meeting occupying this slot (start <= hour < start+duration)
+    return meetings.find(m => m.scheduled && m.day === day && m.startTime <= hour && (m.startTime + m.duration) > hour);
   };
 
   const unscheduledMeetings = meetings.filter(m => !m.scheduled);
-
-  const handleRedo = () => {
-    if (typeof onRedo === 'function') onRedo();
-  };
 
   const getConstraintBadges = (meeting) => {
     const badges = [];
@@ -160,59 +141,39 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onRedo }) => {
 
   return (
     <SchedulerContainer>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0 }}>Schedule Your Meetings</h3>
-        <div>
-          <button
-            onClick={handleRedo}
-            style={{
-              background: '#e5f0ff',
-              border: '1px solid #bcd7ff',
-              padding: '6px 10px',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 600
-            }}
-          >
-            Redo
-          </button>
-        </div>
-      </div>
+      <h3>Schedule Your Meetings</h3>
       
-      <div style={{ marginBottom: '1rem' }}>
+      <ComplexIntro>
         <strong>Complex Constraints:</strong> Each meeting has specific day, time, and dependency requirements. Check the badges below each meeting for details.
-      </div>
+      </ComplexIntro>
 
       <CalendarGrid>
         {days.map(day => (
           <DayColumn key={day}>
             <DayHeader>Day {day}</DayHeader>
             {hours.map(hour => {
-              const slot = getMeetingInSlot(day, hour);
+              const meeting = getMeetingInSlot(day, hour);
+              const isStart = meeting && meeting.startTime === hour;
               return (
                 <TimeSlot
                   key={hour}
-                  hasMeeting={!!slot}
+                  hasMeeting={!!meeting}
                   onDrop={(e) => handleDrop(e, day, hour)}
                   onDragOver={handleDragOver}
                 >
-                  {slot ? (
-                    slot.isStart ? (
-                      // Render full meeting card at its start slot
-                      <div draggable onDragStart={(e) => handleDragStart(e, slot.meeting)}>
-                        <div><strong>{slot.meeting.title}</strong></div>
-                        <div>({slot.meeting.duration}h, {hour}:00-{(hour + slot.meeting.duration).toString().replace('.5', ':30').replace('.0', '')}:00)</div>
+                  {meeting ? (
+                    isStart ? (
+                      <div draggable onDragStart={(e) => handleDragStart(e, meeting)}>
+                        <div><strong>{meeting.title}</strong></div>
+                        <div>({meeting.duration}h, {meeting.startTime}:00-{meeting.startTime + meeting.duration}:00)</div>
                         <div>
-                          {getConstraintBadges(slot.meeting).map((badge, index) => (
+                          {getConstraintBadges(meeting).map((badge, index) => (
                             <ConstraintBadge key={index}>{badge}</ConstraintBadge>
                           ))}
                         </div>
                       </div>
                     ) : (
-                      // Render a compact occupied indicator for covered slots
-                      <div style={{ fontSize: '0.8rem', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span>Occupied</span>
-                      </div>
+                      <div style={{ opacity: 0.85, fontStyle: 'italic' }}>Continued: {meeting.title}</div>
                     )
                   ) : (
                     <span style={{ fontSize: '1rem', fontWeight: 600, paddingLeft: '10px', display: 'inline-block' }}>{hour}:00</span>

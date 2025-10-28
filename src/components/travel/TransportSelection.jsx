@@ -49,7 +49,7 @@ const OptionDescription = styled.p`
   font-size: ${props => props.theme.fontSizes.sm};
 `;
 
-const TransportSelection = ({ options, selectedOption, onSelect }) => {
+const TransportSelection = ({ options, selectedOption, onSelect, onTransportHoverStart, onTransportHoverEnd }) => {
   return (
     <Container>
       <Title>Select Transportation</Title>
@@ -59,6 +59,8 @@ const TransportSelection = ({ options, selectedOption, onSelect }) => {
             key={option.id}
             selected={selectedOption?.id === option.id}
             onClick={() => onSelect(option)}
+            onMouseEnter={() => { if (typeof onTransportHoverStart === 'function') onTransportHoverStart(option); }}
+            onMouseLeave={() => { if (typeof onTransportHoverEnd === 'function') onTransportHoverEnd(option); }}
           >
             <OptionTitle>{option.type}</OptionTitle>
             <OptionPrice>${option.price}</OptionPrice>

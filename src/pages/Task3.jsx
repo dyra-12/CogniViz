@@ -148,13 +148,6 @@ const Task3 = () => {
     });
   };
 
-  const handleRedoMeetings = () => {
-    // Reset meetings to the initial defaults so user can reschedule
-    const reset = JSON.parse(JSON.stringify(initialMeetings));
-    setMeetings(reset);
-    log('meetings_redo');
-  };
-
   const validateConstraints = () => {
     const errors = [];
 
@@ -358,7 +351,6 @@ const Task3 = () => {
           <MeetingScheduler
             meetings={meetings}
             onMeetingSchedule={handleMeetingSchedule}
-            onRedo={handleRedoMeetings}
           />
         </MainContent>
 

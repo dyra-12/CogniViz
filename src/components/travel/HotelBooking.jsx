@@ -62,6 +62,11 @@ const Distance = styled.span`
   font-weight: ${props => (props.distance > 5 ? 'normal' : '600')};
 `;
 
+const HotelConstraints = styled.div`
+  margin-bottom: ${props => props.theme.spacing[4]};
+  color: ${props => props.theme.colors.danger};
+`;
+
 // ---------- Component ----------
 const HotelBooking = ({ hotels, onHotelSelect, selectedHotel }) => {
   const renderStars = (count) => {
@@ -72,9 +77,9 @@ const HotelBooking = ({ hotels, onHotelSelect, selectedHotel }) => {
     <HotelContainer>
       <h3>Book Your Hotel (3 nights)</h3>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <strong>Constraints:</strong> <span style={{ color: '#d9534f', fontWeight: 600 }}>3+ stars, within 5km of Conference Center</span>
-      </div>
+      <HotelConstraints>
+        <strong>Constraints:</strong> 3+ stars, within 5km of Conference Center
+      </HotelConstraints>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
         <thead>

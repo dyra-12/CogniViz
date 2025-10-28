@@ -15,9 +15,8 @@ const Title = styled.h3`
 
 const Constraint = styled.div`
   margin-bottom: ${props => props.theme.spacing[4]};
-  color: ${props => props.theme.colors.danger};
+  color: ${props => props.highlight ? props.theme.colors.danger : props.theme.colors.gray600};
   font-style: italic;
-  font-weight: 600;
 `;
 
 const Table = styled.table`
@@ -79,10 +78,15 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constra
     return `${hoursInt}h ${minutes}m`;
   };
 
+  const highlight = constraint && (
+    constraint.includes('Must arrive before 15:00') ||
+    constraint.includes('Must depart after 12:00 and arrive the next day')
+  );
+
   return (
     <Container>
       <Title>{title}</Title>
-      <Constraint>{constraint}</Constraint>
+      <Constraint highlight={highlight}>{constraint}</Constraint>
 
       <Table>
         <thead>

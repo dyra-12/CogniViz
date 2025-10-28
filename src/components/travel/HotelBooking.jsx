@@ -68,13 +68,13 @@ const HotelConstraints = styled.div`
 `;
 
 // ---------- Component ----------
-const HotelBooking = ({ hotels, onHotelSelect, selectedHotel }) => {
+const HotelBooking = ({ hotels, onHotelSelect, selectedHotel, onHotelHoverStart, onHotelHoverEnd, onComponentEnter }) => {
   const renderStars = (count) => {
     return '★'.repeat(count) + ` (${count})`;
   };
 
   return (
-    <HotelContainer>
+  <HotelContainer onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Hotels'); }}>
       <h3>Book Your Hotel (3 nights)</h3>
 
       <HotelConstraints>
@@ -97,6 +97,8 @@ const HotelBooking = ({ hotels, onHotelSelect, selectedHotel }) => {
             <Tr
               key={hotel.id}
               className={selectedHotel?.id === hotel.id ? 'selected' : ''}
+              onMouseEnter={() => { if (typeof onHotelHoverStart === 'function') onHotelHoverStart(hotel); }}
+              onMouseLeave={() => { if (typeof onHotelHoverEnd === 'function') onHotelHoverEnd(hotel); }}
             >
               <Td>{hotel.name}</Td>
               <Td>

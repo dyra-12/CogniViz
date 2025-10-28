@@ -49,9 +49,9 @@ const OptionDescription = styled.p`
   font-size: ${props => props.theme.fontSizes.sm};
 `;
 
-const TransportSelection = ({ options, selectedOption, onSelect, onTransportHoverStart, onTransportHoverEnd }) => {
+const TransportSelection = ({ options, selectedOption, onSelect, onTransportHoverStart, onTransportHoverEnd, onComponentEnter }) => {
   return (
-    <Container>
+    <Container onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Transportation'); }}>
       <Title>Select Transportation</Title>
       <OptionsGrid>
         {options.map(option => (

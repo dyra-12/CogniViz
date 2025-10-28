@@ -88,18 +88,26 @@ const ComplexIntro = styled.div`
   color: ${props => props.theme.colors.danger};
 `;
 
-const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
+const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onMeetingDropAttempt, onComponentEnter }) => {
   const days = [1, 2, 3, 4];
   const hours = [9, 10, 11, 12, 13, 14, 15, 16]; // 9AM-4PM
 
   const handleDragStart = (e, meeting) => {
     e.dataTransfer.setData('meetingId', meeting.id);
+    if (typeof onMeetingDragStart === 'function') {
+      try { onMeetingDragStart(meeting.id); } catch (err) { /* ignore */ }
+    }
   };
 
   const handleDrop = (e, day, hour) => {
     e.preventDefault();
     const meetingId = e.dataTransfer.getData('meetingId');
-    onMeetingSchedule(meetingId, day, hour);
+    if (typeof onMeetingDropAttempt === 'function') {
+      try { onMeetingDropAttempt(meetingId, day, hour); } catch (err) { /* ignore */ }
+    } else if (typeof onMeetingSchedule === 'function') {
+      // fallback for older prop name
+      try { onMeetingSchedule(meetingId, day, hour); } catch (err) { /* ignore */ }
+    }
   };
 
   const handleDragOver = (e) => {
@@ -140,7 +148,7 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule }) => {
   };
 
   return (
-    <SchedulerContainer>
+    <SchedulerContainer onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Meetings'); }}>
       <h3>Schedule Your Meetings</h3>
       
       <ComplexIntro>

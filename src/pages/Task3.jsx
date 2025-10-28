@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import useLogger from '../hooks/useLogger';
+import useTask3Logger from '../hooks/useTask3Logger';
 import { generateFlights, filterFlights } from '../data/flightService';
 import { generateHotels } from '../data/hotelService';
 import { generateTransportOptions } from '../data/transportService';
@@ -69,6 +70,7 @@ const ErrorMessage = styled.div`
 const Task3 = () => {
   const { completeCurrentTask } = useTaskProgress();
   const { log } = useLogger();
+  const task3Logger = useTask3Logger();
   
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
@@ -89,6 +91,15 @@ const Task3 = () => {
     setTransportOptions(generateTransportOptions());
     
     log('travel_dashboard_view');
+    // Mark task start for metrics collection
+    try {
+      task3Logger.markStart();
+      // expose for debugging in browser console
+      if (typeof window !== 'undefined') window.__task3Logger = task3Logger;
+    } catch (e) {
+      // swallow - telemetry hook should not break UI
+      console.warn('task3 logger start failed', e);
+    }
   }, [log]);
 
   const totalCost = (selectedOutboundFlight?.price || 0) + 
@@ -105,6 +116,7 @@ const Task3 = () => {
       price: flight.price,
       arrivalTime: flight.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     });
+    try { task3Logger.logFlightSelection(flight, 'outbound'); } catch (e) { /* ignore */ }
   };
 
   const handleReturnFlightSelect = (flight) => {
@@ -114,6 +126,7 @@ const Task3 = () => {
       price: flight.price,
       departureTime: flight.departureTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     });
+    try { task3Logger.logFlightSelection(flight, 'return'); } catch (e) { /* ignore */ }
   };
 
   const handleHotelSelect = (hotel) => {
@@ -123,6 +136,7 @@ const Task3 = () => {
       price: hotel.totalPrice,
       distance: hotel.distance
     });
+    try { task3Logger.logHotelSelection(hotel); } catch (e) { /* ignore */ }
   };
 
   const handleTransportSelect = (transport) => {
@@ -131,21 +145,126 @@ const Task3 = () => {
       type: transport.type,
       price: transport.price
     });
+    try { task3Logger.logTransportSelection(transport); } catch (e) { /* ignore */ }
   };
 
-  const handleMeetingSchedule = (meetingId, day, hour) => {
-    setMeetings(prev => prev.map(meeting => 
-      meeting.id === meetingId 
-        ? { ...meeting, scheduled: true, day, startTime: hour }
-        : meeting
-    ));
-    
+  // Hover handlers for flights/hotels/transport
+  const handleFlightHoverStart = (flight) => {
+    try { task3Logger.logHoverStart('flights', flight.id, `${flight.airline} ${flight.id}`); } catch (e) { /* ignore */ }
+  };
+  const handleFlightHoverEnd = (flight) => {
+    try { task3Logger.logHoverEnd('flights', flight.id, `${flight.airline} ${flight.id}`); } catch (e) { /* ignore */ }
+  };
+
+  const handleHotelHoverStart = (hotel) => {
+    try { task3Logger.logHoverStart('hotels', hotel.id, hotel.name); } catch (e) { /* ignore */ }
+  };
+  const handleHotelHoverEnd = (hotel) => {
+    try { task3Logger.logHoverEnd('hotels', hotel.id, hotel.name); } catch (e) { /* ignore */ }
+  };
+
+  const handleTransportHoverStart = (opt) => {
+    try { task3Logger.logHoverStart('transportation', opt.id, opt.type); } catch (e) { /* ignore */ }
+  };
+  const handleTransportHoverEnd = (opt) => {
+    try { task3Logger.logHoverEnd('transportation', opt.id, opt.type); } catch (e) { /* ignore */ }
+  };
+
+  const handleComponentEnter = (name) => {
+    try { task3Logger.componentSwitch(name); } catch (e) { /* ignore */ }
+    // Start/stop mouse entropy sampling per-area when switching components
+    try {
+      const mapNameToArea = (n) => {
+        if (!n) return null;
+        const lower = n.toLowerCase();
+        if (lower.includes('flight')) return 'flights';
+        if (lower.includes('hotel')) return 'hotels';
+        if (lower.includes('transport')) return 'transportation';
+        if (lower.includes('meeting')) return 'meetings';
+        if (lower.includes('meetings')) return 'meetings';
+        return null;
+      };
+      const area = mapNameToArea(name);
+      const prev = handleComponentEnter._prevArea;
+      const prevArea = prev || null;
+      if (prevArea && prevArea !== area) {
+        try { task3Logger.stopMouseEntropy(prevArea); } catch (e) { /* ignore */ }
+      }
+      if (area) {
+        try { task3Logger.startMouseEntropy(area); } catch (e) { /* ignore */ }
+      }
+      handleComponentEnter._prevArea = area;
+    } catch (e) { /* ignore */ }
+  };
+
+  // Meeting drag/drop instrumentation: drag start -> log; drop -> validate, log attempts
+  const handleMeetingDragStart = (meetingId) => {
+    try { task3Logger.logMeetingDragStart(meetingId); } catch (e) { /* ignore */ }
+  };
+
+  const validateSingleMeetingPlacement = (meeting, day, hour, currentMeetings) => {
+    if (!meeting) return { valid: false, reason: 'unknown_meeting' };
+    // Allowed days
+    if (meeting.constraints.allowedDays && !meeting.constraints.allowedDays.includes(day)) {
+      return { valid: false, reason: 'wrong_day' };
+    }
+    // Time range
+    if (meeting.constraints.timeRange) {
+      if (hour < meeting.constraints.timeRange.start || (hour + meeting.duration) > meeting.constraints.timeRange.end) {
+        return { valid: false, reason: 'time_conflict' };
+      }
+    }
+    // mustFollow
+    if (meeting.constraints.mustFollow) {
+      const followed = currentMeetings.find(m => m.id === meeting.constraints.mustFollow);
+      if (followed && followed.scheduled) {
+        if (day < followed.day || (day === followed.day && hour <= followed.startTime + followed.duration)) {
+          return { valid: false, reason: 'must_follow' };
+        }
+      }
+    }
+    // mustPrecede
+    if (meeting.constraints.mustPrecede) {
+      const preceded = currentMeetings.find(m => m.id === meeting.constraints.mustPrecede);
+      if (preceded && preceded.scheduled) {
+        if (day > preceded.day || (day === preceded.day && (hour + meeting.duration) >= preceded.startTime)) {
+          return { valid: false, reason: 'must_precede' };
+        }
+      }
+    }
+    // cannot overlap
+    if (meeting.constraints.cannotOverlapWith) {
+      for (const otherId of meeting.constraints.cannotOverlapWith) {
+        const other = currentMeetings.find(m => m.id === otherId);
+        if (other && other.scheduled && other.day === day) {
+          const meetingEnd = hour + meeting.duration;
+          const otherEnd = other.startTime + other.duration;
+          if (!(meetingEnd <= other.startTime || hour >= otherEnd)) {
+            return { valid: false, reason: 'time_conflict' };
+          }
+        }
+      }
+    }
+    return { valid: true, reason: null };
+  };
+
+  const handleMeetingDropAttempt = (meetingId, day, hour) => {
     const meeting = meetings.find(m => m.id === meetingId);
-    log('meeting_scheduled', {
-      meeting: meeting.title,
-      day,
-      startTime: hour
-    });
+    const { valid, reason } = validateSingleMeetingPlacement(meeting, day, hour, meetings);
+    if (valid) {
+      setMeetings(prev => prev.map(m => m.id === meetingId ? { ...m, scheduled: true, day, startTime: hour } : m));
+      log('meeting_scheduled', { meeting: meeting?.title, day, startTime: hour });
+      try { task3Logger.logMeetingDropAttempt(meetingId, day, hour, true); } catch (e) { /* ignore */ }
+      // remove any prior validationErrors related to this meeting
+      setValidationErrors(prev => prev.filter(msg => typeof msg === 'string' ? !msg.includes(meetingId) : true));
+    } else {
+      // Log failed attempt
+      log('meeting_schedule_attempt_failed', { meetingId, day, hour, reason });
+      try { task3Logger.logMeetingDropAttempt(meetingId, day, hour, false, reason); } catch (e) { /* ignore */ }
+      try { task3Logger.incrementError(); } catch (e) { /* ignore */ }
+      // show error to user by appending to validationErrors with meeting id so we can remove later
+      setValidationErrors(prev => [...prev, `Failed to place meeting ${meetingId}: ${reason}`]);
+    }
   };
 
   const validateConstraints = () => {
@@ -262,6 +381,12 @@ const Task3 = () => {
     });
 
     setValidationErrors(errors);
+    // Count each visible error as an error event
+    if (errors.length > 0) {
+      try {
+        errors.forEach(() => task3Logger.incrementError());
+      } catch (e) { /* ignore */ }
+    }
     return errors.length === 0;
   };
 
@@ -286,9 +411,32 @@ const Task3 = () => {
         transport: selectedTransport,
         meetings: meetings.filter(m => m.scheduled)
       });
+      try { task3Logger.finalizeAndSave(true); } catch (e) { /* ignore */ }
+      try {
+        // Also write final payload under the required key
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('task 3', JSON.stringify({ task_3_data: task3Logger.data }));
+        }
+      } catch (e) { /* ignore */ }
+      // stop any running sampling
+      try {
+        const prevArea = handleComponentEnter._prevArea;
+        if (prevArea) task3Logger.stopMouseEntropy(prevArea);
+      } catch (e) { /* ignore */ }
       setIsCompleted(true);
     } else {
       log('trip_finalize_failed', { errors: validationErrors });
+      try { task3Logger.finalizeAndSave(false); } catch (e) { /* ignore */ }
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('task 3', JSON.stringify({ task_3_data: task3Logger.data }));
+        }
+      } catch (e) { /* ignore */ }
+      // stop any running sampling
+      try {
+        const prevArea = handleComponentEnter._prevArea;
+        if (prevArea) task3Logger.stopMouseEntropy(prevArea);
+      } catch (e) { /* ignore */ }
     }
   };
 
@@ -326,6 +474,9 @@ const Task3 = () => {
             selectedFlight={selectedOutboundFlight}
             title="Outbound Flight (NY → Berlin)"
             constraint="Must arrive before 15:00 on the same day"
+            onFlightHoverStart={handleFlightHoverStart}
+            onFlightHoverEnd={handleFlightHoverEnd}
+            onComponentEnter={handleComponentEnter}
           />
           
           <FlightBooking
@@ -334,23 +485,34 @@ const Task3 = () => {
             selectedFlight={selectedReturnFlight}
             title="Return Flight (Berlin → NY)"
             constraint="Must depart after 12:00 and arrive the next day"
+            onFlightHoverStart={handleFlightHoverStart}
+            onFlightHoverEnd={handleFlightHoverEnd}
+            onComponentEnter={handleComponentEnter}
           />
           
           <HotelBooking
             hotels={hotels}
             onHotelSelect={handleHotelSelect}
             selectedHotel={selectedHotel}
+            onHotelHoverStart={handleHotelHoverStart}
+            onHotelHoverEnd={handleHotelHoverEnd}
+            onComponentEnter={handleComponentEnter}
           />
           
           <TransportSelection
             options={transportOptions}
             selectedOption={selectedTransport}
             onSelect={handleTransportSelect}
+            onTransportHoverStart={handleTransportHoverStart}
+            onTransportHoverEnd={handleTransportHoverEnd}
+            onComponentEnter={handleComponentEnter}
           />
           
           <MeetingScheduler
             meetings={meetings}
-            onMeetingSchedule={handleMeetingSchedule}
+            onMeetingDragStart={handleMeetingDragStart}
+            onMeetingDropAttempt={handleMeetingDropAttempt}
+            onComponentEnter={handleComponentEnter}
           />
         </MainContent>
 

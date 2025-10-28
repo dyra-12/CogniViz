@@ -28,7 +28,7 @@ const useTask3Logger = (opts = {}) => {
     component_switches: [],
     idle_periods: [],
     computed_signals: { rapid_selection_changes: 0, mouse_sampling_rate_ms: DEFAULT_SAMPLE_MS },
-    budget: { current_total: 0, updates: [], budget_overrun_events: 0, cost_adjustment_actions: 0 },
+  budget: { current_total: 0, updates: [], budget_overrun_events: 0, cost_adjustment_actions: 0, in_overrun: false, overrun_selection_counter: 0 },
     flights: { hover_events: [], selections: [], mouse_entropy: 0 },
     hotels: { hover_events: [], selections: [], mouse_entropy: 0 },
     transportation: { hover_events: [], selections: [], mouse_entropy: 0 },
@@ -345,17 +345,43 @@ const useTask3Logger = (opts = {}) => {
   const pushBudgetUpdate = (cause, detail) => {
     try {
       const ts = nowISO();
-      // Accept detail.new_total when provided and update current_total.
-      const newTotal = detail && typeof detail.new_total === 'number' ? detail.new_total : null;
       const prevTotal = dataRef.current.budget.current_total || (dataRef.current.budget.updates.length ? dataRef.current.budget.updates[dataRef.current.budget.updates.length - 1].new_total : null) || 0;
-      safePush(dataRef.current.budget.updates, { ts, new_total: newTotal, cause, detail });
-      if (newTotal !== null) {
-        // detect overrun crossing
-        if (prevTotal <= 1380 && newTotal > 1380) dataRef.current.budget.budget_overrun_events++;
-        // detect cost adjustments (user reduced total)
-        if (newTotal < prevTotal) dataRef.current.budget.cost_adjustment_actions++;
-        dataRef.current.budget.current_total = newTotal;
+      // Infer new total if not explicitly provided but a price is given (e.g., selection)
+      let inferredNewTotal = null;
+      if (detail && typeof detail.new_total === 'number') inferredNewTotal = detail.new_total;
+      else if (detail && typeof detail.price === 'number') inferredNewTotal = prevTotal + detail.price;
+      // Record update with the inferred total so downstream viewers can inspect
+      safePush(dataRef.current.budget.updates, { ts, new_total: inferredNewTotal, cause, detail });
+
+      if (inferredNewTotal !== null) {
+        // If we transition into overrun state (total > 1380), start counting selections until resolved
+        if (!dataRef.current.budget.in_overrun && inferredNewTotal > 1380) {
+          dataRef.current.budget.budget_overrun_events++;
+          dataRef.current.budget.in_overrun = true;
+          dataRef.current.budget.overrun_selection_counter = 0;
+        }
+
+        // If we're currently in overrun, count selection attempts (only for selection-causes)
+        if (dataRef.current.budget.in_overrun) {
+          if (cause === 'flight' || cause === 'hotel' || cause === 'transport') {
+            dataRef.current.budget.overrun_selection_counter++;
+          }
+          // If the new total brings us back within budget, finalize the cost_adjustment_actions
+          if (inferredNewTotal <= 1380) {
+            dataRef.current.budget.cost_adjustment_actions += dataRef.current.budget.overrun_selection_counter || 0;
+            dataRef.current.budget.in_overrun = false;
+            dataRef.current.budget.overrun_selection_counter = 0;
+          }
+        } else {
+          // If not in overrun, detect simple cost adjustment where user reduces total (not part of overrun flow)
+          if (inferredNewTotal < prevTotal) {
+            dataRef.current.budget.cost_adjustment_actions++;
+          }
+        }
+
+        dataRef.current.budget.current_total = inferredNewTotal;
       }
+
       dataRef.current.last_saved_ts = ts;
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `budgetUpdate failed ${e.message}` });

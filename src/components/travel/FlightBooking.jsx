@@ -67,7 +67,7 @@ const SelectButton = styled.button`
   }
 `;
 
-const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constraint }) => {
+const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constraint, onFlightHoverStart, onFlightHoverEnd, onComponentEnter }) => {
   const formatTime = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
@@ -84,7 +84,7 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constra
   );
 
   return (
-    <Container>
+  <Container onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Flights'); }}>
       <Title>{title}</Title>
       <Constraint highlight={highlight}>{constraint}</Constraint>
 
@@ -105,6 +105,8 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constra
             <Tr 
               key={flight.id} 
               className={selectedFlight?.id === flight.id ? 'selected' : ''}
+              onMouseEnter={() => { if (typeof onFlightHoverStart === 'function') onFlightHoverStart(flight); }}
+              onMouseLeave={() => { if (typeof onFlightHoverEnd === 'function') onFlightHoverEnd(flight); }}
             >
               <Td>{flight.airline}</Td>
               <Td>{formatTime(flight.departureTime)}</Td>

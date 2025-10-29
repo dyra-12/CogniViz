@@ -6,6 +6,7 @@ import Task1 from '../pages/Task1';
 import Task2 from '../pages/Task2';
 import Task3 from '../pages/Task3';
 import CompletionPage from '../pages/CompletionPage';
+import ConsentLanding from '../pages/ConsentLanding';
 
 const AppLayout = () => {
   const { currentTask, showInstructions, setShowInstructions } = useTaskProgress();
@@ -25,7 +26,8 @@ const AppLayout = () => {
       <Header />
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Navigate to={`/task${currentTask}`} replace />} />
+          <Route path="/" element={<Navigate to={currentTask && localStorage.getItem('consentGiven') === 'true' ? `/task${currentTask}` : '/consent'} replace />} />
+          <Route path="/consent" element={<ConsentLanding />} />
           <Route path="/task1" element={currentTask === 1 ? <Task1 /> : <Navigate to={`/task${currentTask}`} replace />} />
           <Route path="/task2" element={currentTask === 2 ? <Task2 /> : <Navigate to={`/task${currentTask}`} replace />} />
           <Route path="/task3" element={currentTask === 3 ? <Task3 /> : <Navigate to={`/task${currentTask}`} replace />} />

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import Header from './Header';
 import InstructionModal from './InstructionModal';
+import QuestionnaireModal from './QuestionnaireModal';
 import Task1 from '../pages/Task1';
 import Task2 from '../pages/Task2';
 import Task3 from '../pages/Task3';
@@ -9,7 +10,14 @@ import CompletionPage from '../pages/CompletionPage';
 import ConsentLanding from '../pages/ConsentLanding';
 
 const AppLayout = () => {
-  const { currentTask, showInstructions, setShowInstructions, consentGiven } = useTaskProgress();
+  const { 
+    currentTask, 
+    showInstructions, 
+    setShowInstructions, 
+    consentGiven,
+    questionnaireData,
+    handleQuestionnaireSubmit
+  } = useTaskProgress();
 
   const getCurrentComponent = () => {
     switch (currentTask) {
@@ -42,6 +50,13 @@ const AppLayout = () => {
           onClose={() => setShowInstructions(false)} 
         />
       )}
+
+      {/* NASA-TLX Questionnaire Modal */}
+      <QuestionnaireModal
+        isOpen={questionnaireData.isOpen}
+        taskId={questionnaireData.taskId}
+        onSubmit={handleQuestionnaireSubmit}
+      />
     </div>
   );
 };

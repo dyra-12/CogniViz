@@ -1,193 +1,526 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
-import { buildTlxPayload, saveTlxToLocal } from '../utils/tlx';
+import Button from './Button';
 
+// Modal Overlay
 const Overlay = styled.div`
   position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 1000;
+  padding: ${props => props.theme.spacing[4]};
+  overflow-y: auto;
+  backdrop-filter: blur(4px);
 `;
 
-const Modal = styled.div`
-  width: 680px;
-  max-width: 94vw;
-  background: ${p => p.theme.colors.white};
-  border-radius: ${p => p.theme.borderRadius.lg};
-  padding: ${p => p.theme.spacing[6]};
-  box-shadow: ${p => p.theme.shadows.xl};
+// Modal Container
+const ModalContainer = styled.div`
+  background: ${props => props.theme.colors.white};
+  border-radius: ${props => props.theme.borderRadius.xl};
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  animation: slideIn 0.3s ease-out;
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 640px) {
+    max-height: 95vh;
+    border-radius: ${props => props.theme.borderRadius.lg};
+  }
 `;
 
-const Header = styled.div`
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom: ${p => p.theme.spacing[4]};
+// Header
+const ModalHeader = styled.div`
+  padding: ${props => props.theme.spacing[6]};
+  border-bottom: 2px solid ${props => props.theme.colors.gray200};
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary}15, ${props => props.theme.colors.secondary}10);
 `;
 
-const Title = styled.h3`
-  margin:0;
-  color: ${p => p.theme.colors.gray800};
+const Title = styled.h2`
+  margin: 0 0 ${props => props.theme.spacing[2]};
+  color: ${props => props.theme.colors.primary};
+  font-size: ${props => props.theme.fontSizes['2xl']};
+  font-weight: 600;
+
+  @media (max-width: 640px) {
+    font-size: ${props => props.theme.fontSizes.xl};
+  }
 `;
 
-const Body = styled.div`
-  margin-top: ${p => p.theme.spacing[3]};
+const Subtitle = styled.p`
+  margin: 0;
+  color: ${props => props.theme.colors.gray600};
+  font-size: ${props => props.theme.fontSizes.sm};
 `;
 
-const Footer = styled.div`
-  margin-top: ${p => p.theme.spacing[4]};
-  display:flex;
-  justify-content:space-between;
-  gap: ${p => p.theme.spacing[3]};
+// Progress Indicator
+const ProgressContainer = styled.div`
+  padding: ${props => props.theme.spacing[4]} ${props => props.theme.spacing[6]};
+  background: ${props => props.theme.colors.gray100};
+  border-bottom: 1px solid ${props => props.theme.colors.gray200};
 `;
 
-const SliderRow = styled.div`
-  margin-bottom: ${p => p.theme.spacing[4]};
+const ProgressText = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${props => props.theme.spacing[2]};
+  font-size: ${props => props.theme.fontSizes.sm};
+  font-weight: 500;
+  color: ${props => props.theme.colors.gray700};
 `;
 
-const AnchorLabels = styled.div`
-  display:flex;
-  justify-content:space-between;
-  font-size: ${p => p.theme.fontSizes.xs};
-  color: ${p => p.theme.colors.gray600};
-  margin-top: ${p => p.theme.spacing[2]};
+const ProgressBar = styled.div`
+  height: 6px;
+  background: ${props => props.theme.colors.gray300};
+  border-radius: 3px;
+  overflow: hidden;
 `;
 
-const Progress = styled.div`
-  font-size: ${p => p.theme.fontSizes.sm};
-  color: ${p => p.theme.colors.gray600};
+const ProgressFill = styled.div`
+  height: 100%;
+  background: linear-gradient(90deg, ${props => props.theme.colors.primary}, ${props => props.theme.colors.secondary});
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  width: ${props => props.progress}%;
 `;
 
-const Btn = styled.button`
-  background: ${p => p.primary ? p.theme.colors.primary : 'transparent'};
-  color: ${p => p.primary ? p.theme.colors.white : p.theme.colors.gray800};
-  border: ${p => p.primary ? 'none' : `1px solid ${p.theme.colors.gray300}`};
-  padding: ${p => p.theme.spacing[2]} ${p => p.theme.spacing[4]};
-  border-radius: ${p => p.theme.borderRadius.md};
+// Content
+const ModalContent = styled.div`
+  padding: ${props => props.theme.spacing[8]} ${props => props.theme.spacing[6]};
+  overflow-y: auto;
+  flex: 1;
+
+  @media (max-width: 640px) {
+    padding: ${props => props.theme.spacing[6]} ${props => props.theme.spacing[4]};
+  }
+`;
+
+const QuestionContainer = styled.div`
+  animation: fadeIn 0.3s ease-out;
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateX(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+`;
+
+const QuestionTitle = styled.h3`
+  margin: 0 0 ${props => props.theme.spacing[3]};
+  color: ${props => props.theme.colors.gray900};
+  font-size: ${props => props.theme.fontSizes.lg};
+  font-weight: 600;
+`;
+
+const QuestionDescription = styled.p`
+  margin: 0 0 ${props => props.theme.spacing[6]};
+  color: ${props => props.theme.colors.gray600};
+  font-size: ${props => props.theme.fontSizes.md};
+  line-height: 1.6;
+`;
+
+// Options Container - Horizontal Scale
+const OptionsContainer = styled.div`
+  margin: ${props => props.theme.spacing[8]} 0;
+  display: flex;
+  flex-direction: column;
+  gap: ${props => props.theme.spacing[4]};
+`;
+
+const ScaleContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: ${props => props.theme.spacing[2]};
+  justify-content: space-between;
+  align-items: stretch;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: ${props => props.theme.spacing[3]};
+  }
+`;
+
+const OptionButton = styled.button`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${props => props.theme.spacing[4]} ${props => props.theme.spacing[2]};
+  background: ${props => {
+    if (props.isSelected) return props.theme.colors.primary;
+    return props.theme.colors.white;
+  }};
+  color: ${props => props.isSelected ? props.theme.colors.white : props.theme.colors.gray700};
+  border: 2px solid ${props => props.isSelected ? props.theme.colors.primary : props.theme.colors.gray300};
+  border-radius: ${props => props.theme.borderRadius.lg};
   cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  min-height: 120px;
+  position: relative;
+
+  &:hover {
+    border-color: ${props => props.theme.colors.primary};
+    background: ${props => props.isSelected ? props.theme.colors.info : `${props.theme.colors.primary}10`};
+    transform: translateY(-4px);
+    box-shadow: ${props => props.theme.shadows.lg};
+  }
+
+  &:active {
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+    min-height: auto;
+    padding: ${props => props.theme.spacing[3]} ${props => props.theme.spacing[4]};
+  }
 `;
 
+const OptionRange = styled.div`
+  font-size: ${props => props.theme.fontSizes.xs};
+  font-weight: 700;
+  color: ${props => props.isSelected ? props.theme.colors.white : props.theme.colors.gray500};
+  margin-bottom: ${props => props.theme.spacing[2]};
+  letter-spacing: 0.5px;
+
+  @media (max-width: 768px) {
+    margin-bottom: 0;
+    margin-right: ${props => props.theme.spacing[3]};
+    min-width: 50px;
+  }
+`;
+
+const OptionLabel = styled.div`
+  font-size: ${props => props.theme.fontSizes.sm};
+  font-weight: 600;
+  color: ${props => props.isSelected ? props.theme.colors.white : props.theme.colors.gray800};
+  line-height: 1.3;
+
+  @media (max-width: 768px) {
+    flex: 1;
+  }
+`;
+
+const ScaleLabels = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-top: ${props => props.theme.spacing[2]};
+  padding: 0 ${props => props.theme.spacing[2]};
+  font-size: ${props => props.theme.fontSizes.sm};
+  color: ${props => props.theme.colors.gray600};
+  font-weight: 500;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+// Footer
+const ModalFooter = styled.div`
+  padding: ${props => props.theme.spacing[4]} ${props => props.theme.spacing[6]};
+  border-top: 2px solid ${props => props.theme.colors.gray200};
+  display: flex;
+  gap: ${props => props.theme.spacing[3]};
+  justify-content: ${props => props.justify || 'space-between'};
+  background: ${props => props.theme.colors.gray50};
+
+  @media (max-width: 640px) {
+    padding: ${props => props.theme.spacing[3]} ${props => props.theme.spacing[4]};
+    flex-direction: ${props => props.singleButton ? 'column' : 'row'};
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: ${props => props.theme.spacing[3]};
+  flex: 1;
+  justify-content: ${props => props.align || 'flex-start'};
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+  }
+`;
+
+// NASA-TLX Questions Configuration
 const QUESTIONS = [
-  { key: 'mental_demand', title: 'Mental Demand', anchors: ['Very Easy & Automatic','Simple','Moderate','Challenging','Extremely Demanding'] },
-  { key: 'physical_demand', title: 'Physical Demand', anchors: ['Very Light','Light','Comfortable','Tiring','Exhausting'] },
-  { key: 'temporal_demand', title: 'Temporal Demand', anchors: ['Very Relaxed Pace','Comfortable Pace','Occasionally Rushed','Frequent Time Pressure','Extreme Time Crunch'] },
-  { key: 'performance', title: 'Performance', anchors: ['Complete Failure','Mostly Unsuccessful','Partially Successful','Mostly Successful','Perfect Performance'] },
-  { key: 'effort', title: 'Effort', anchors: ['Minimal Effort','Some Effort','Moderate Effort','Considerable Effort','Extreme Effort'] },
-  { key: 'frustration', title: 'Frustration', anchors: ['Completely Relaxed','Mostly Comfortable','Occasionally Annoyed','Very Frustrated','Extremely Stressed'] }
+  {
+    id: 'mental_demand',
+    title: '1. Mental Demand',
+    description: 'How much thinking, deciding, or remembering did the task require?',
+    lowLabel: 'Very Low',
+    highLabel: 'Very High',
+    options: [
+      { value: 10, range: '0-20', label: 'Very Easy & Automatic' },
+      { value: 30, range: '21-40', label: 'Simple' },
+      { value: 50, range: '41-60', label: 'Moderate' },
+      { value: 70, range: '61-80', label: 'Challenging' },
+      { value: 90, range: '81-100', label: 'Extremely Demanding' }
+    ]
+  },
+  {
+    id: 'physical_demand',
+    title: '2. Physical Demand',
+    description: 'How much physical effort was involved? (Clicking, typing, mouse movement)',
+    lowLabel: 'Very Low',
+    highLabel: 'Very High',
+    options: [
+      { value: 10, range: '0-20', label: 'Very Light' },
+      { value: 30, range: '21-40', label: 'Light' },
+      { value: 50, range: '41-60', label: 'Comfortable' },
+      { value: 70, range: '61-80', label: 'Tiring' },
+      { value: 90, range: '81-100', label: 'Exhausting' }
+    ]
+  },
+  {
+    id: 'temporal_demand',
+    title: '3. Temporal Demand',
+    description: 'How much time pressure did you feel due to the pace of the task?',
+    lowLabel: 'Very Low',
+    highLabel: 'Very High',
+    options: [
+      { value: 10, range: '0-20', label: 'Very Relaxed Pace' },
+      { value: 30, range: '21-40', label: 'Comfortable Pace' },
+      { value: 50, range: '41-60', label: 'Occasionally Rushed' },
+      { value: 70, range: '61-80', label: 'Frequent Pressure' },
+      { value: 90, range: '81-100', label: 'Extreme Pressure' }
+    ]
+  },
+  {
+    id: 'performance',
+    title: '4. Performance',
+    description: 'How successful do you think you were in accomplishing the task goals?',
+    lowLabel: 'Very Poor',
+    highLabel: 'Very Good',
+    options: [
+      { value: 10, range: '0-20', label: 'Complete Failure' },
+      { value: 30, range: '21-40', label: 'Mostly Unsuccessful' },
+      { value: 50, range: '41-60', label: 'Partially Successful' },
+      { value: 70, range: '61-80', label: 'Mostly Successful' },
+      { value: 90, range: '81-100', label: 'Perfect Performance' }
+    ]
+  },
+  {
+    id: 'effort',
+    title: '5. Effort',
+    description: 'How hard did you have to work to achieve your level of performance?',
+    lowLabel: 'Very Low',
+    highLabel: 'Very High',
+    options: [
+      { value: 10, range: '0-20', label: 'Minimal Effort' },
+      { value: 30, range: '21-40', label: 'Some Effort' },
+      { value: 50, range: '41-60', label: 'Moderate Effort' },
+      { value: 70, range: '61-80', label: 'Considerable Effort' },
+      { value: 90, range: '81-100', label: 'Extreme Effort' }
+    ]
+  },
+  {
+    id: 'frustration',
+    title: '6. Frustration',
+    description: 'How insecure, discouraged, or annoyed did you feel during the task?',
+    lowLabel: 'Very Low',
+    highLabel: 'Very High',
+    options: [
+      { value: 10, range: '0-20', label: 'Completely Relaxed' },
+      { value: 30, range: '21-40', label: 'Mostly Comfortable' },
+      { value: 50, range: '41-60', label: 'Occasionally Annoyed' },
+      { value: 70, range: '61-80', label: 'Very Frustrated' },
+      { value: 90, range: '81-100', label: 'Extremely Stressed' }
+    ]
+  }
 ];
 
-const QuestionnaireModal = ({ taskId = 'task_1_form', onClose = () => {}, onSaved = () => {}, randomize = true }) => {
-  const [order, setOrder] = useState(QUESTIONS.map((q,i) => i));
-  const [idx, setIdx] = useState(0);
-  const [values, setValues] = useState({});
-  const [touched, setTouched] = useState({});
+/**
+ * NASA-TLX Questionnaire Modal Component
+ */
+const QuestionnaireModal = ({ isOpen, onClose, onSubmit, taskId }) => {
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [responses, setResponses] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (randomize) {
-      const arr = [...order];
-      for (let i = arr.length -1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i+1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      setOrder(arr);
+  // Randomize question order (memoized so it doesn't change on re-renders)
+  const randomizedQuestions = useMemo(() => {
+    const questions = [...QUESTIONS];
+    // Shuffle using Fisher-Yates algorithm
+    for (let i = questions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [questions[i], questions[j]] = [questions[j], questions[i]];
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return questions;
+  }, [isOpen]); // Re-randomize when modal opens
 
-  const currentQuestion = QUESTIONS[order[idx]];
+  const currentQuestion = randomizedQuestions[currentQuestionIndex];
+  const currentValue = responses[currentQuestion?.id] ?? null;
+  const totalQuestions = randomizedQuestions.length;
+  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100;
+  const allQuestionsAnswered = randomizedQuestions.every(q => responses[q.id] !== undefined);
 
-  const handleChange = (k, v) => {
-    setValues(prev => ({ ...prev, [k]: Number(v) }));
-    setTouched(prev => ({ ...prev, [k]: true }));
-  };
-
-  const canNext = () => {
-    const k = currentQuestion.key;
-    return typeof values[k] !== 'undefined';
+  const handleOptionSelect = (optionValue) => {
+    setResponses(prev => ({
+      ...prev,
+      [currentQuestion.id]: optionValue
+    }));
   };
 
   const handleNext = () => {
-    if (!canNext()) return;
-    if (idx < order.length - 1) setIdx(i => i + 1);
+    if (currentQuestionIndex < totalQuestions - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    }
   };
 
-  const handlePrev = () => {
-    if (idx > 0) setIdx(i => i - 1);
+  const handlePrevious = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
   };
 
-  const handleSave = () => {
-    // Ensure all six present
-    const missing = QUESTIONS.map(q => q.key).filter(k => typeof values[k] === 'undefined');
-    if (missing.length) {
-      // jump to first missing
-      const firstMissing = order.findIndex(i => missing.includes(QUESTIONS[i].key));
-      if (firstMissing >= 0) setIdx(firstMissing);
+  const handleSubmit = async () => {
+    if (!allQuestionsAnswered) {
+      alert('Please answer all questions before submitting.');
       return;
     }
-    const payload = buildTlxPayload(taskId, values);
-    const ok = saveTlxToLocal(payload);
-    onSaved(payload, ok);
-    onClose();
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(responses);
+    } catch (error) {
+      console.error('Failed to submit questionnaire:', error);
+      alert('Failed to save your responses. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  const handleOverlayClick = (e) => {
+    // Prevent closing when clicking inside the modal
+    if (e.target === e.currentTarget) {
+      // Optional: show a warning that the questionnaire must be completed
+      if (!allQuestionsAnswered) {
+        alert('Please complete all questions before proceeding.');
+      }
+    }
+  };
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentQuestionIndex(0);
+      setResponses({});
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
   return (
-    <Overlay role="dialog" aria-modal="true">
-      <Modal>
-        <Header>
-          <div>
-            <Title>Task Evaluation (NASA-TLX)</Title>
-            <Progress>Question {idx + 1} of {QUESTIONS.length}</Progress>
-          </div>
-          <div>
-            <Btn onClick={() => { if (window.confirm('Are you sure you want to close? This questionnaire is required to proceed.')) onClose(); }}>Close</Btn>
-          </div>
-        </Header>
+    <Overlay onClick={handleOverlayClick}>
+      <ModalContainer role="dialog" aria-modal="true" aria-labelledby="questionnaire-title">
+        <ModalHeader>
+          <Title id="questionnaire-title">NASA-TLX: Task Evaluation</Title>
+          <Subtitle>Please rate your experience with the task you just completed</Subtitle>
+        </ModalHeader>
 
-        <Body>
-          <h4 style={{marginTop:0}}>{currentQuestion.title}</h4>
-          <p style={{color: 'rgba(0,0,0,0.6)'}}>Use the slider to rate the task from 0 to 100.</p>
-          <SliderRow>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={typeof values[currentQuestion.key] === 'undefined' ? 50 : values[currentQuestion.key]}
-              onChange={(e) => handleChange(currentQuestion.key, e.target.value)}
-              style={{ width: '100%' }}
-            />
-            <div style={{display:'flex', justifyContent:'space-between', marginTop:8}}>
-              <div style={{fontWeight:600}}>{typeof values[currentQuestion.key] === 'undefined' ? '—' : values[currentQuestion.key]}</div>
-              <div style={{fontSize:12, color:'rgba(0,0,0,0.5)'}}>Anchor labels below</div>
-            </div>
-            <AnchorLabels>
-              {currentQuestion.anchors.map((a, i) => <span key={i}>{a}</span>)}
-            </AnchorLabels>
-          </SliderRow>
+        <ProgressContainer>
+          <ProgressText>
+            <span>Question {currentQuestionIndex + 1} of {totalQuestions}</span>
+            <span>{Math.round(progress)}% Complete</span>
+          </ProgressText>
+          <ProgressBar>
+            <ProgressFill progress={progress} />
+          </ProgressBar>
+        </ProgressContainer>
 
-          <div style={{marginTop: '1rem'}}>
-            <h5>Summary</h5>
-            <ul>
-              {QUESTIONS.map(q => (
-                <li key={q.key} style={{opacity: values[q.key] ? 1 : 0.6}}>{q.title}: {typeof values[q.key] === 'undefined' ? '—' : values[q.key]}</li>
-              ))}
-            </ul>
-          </div>
-        </Body>
+        <ModalContent>
+          <QuestionContainer key={currentQuestion.id}>
+            <QuestionTitle>{currentQuestion.title}</QuestionTitle>
+            <QuestionDescription>{currentQuestion.description}</QuestionDescription>
 
-        <Footer>
-          <div style={{display:'flex', gap:8}}>
-            <Btn onClick={handlePrev} disabled={idx===0}>Previous</Btn>
-            <Btn onClick={handleNext} disabled={!canNext() || idx === order.length - 1}>Next</Btn>
-          </div>
-          <div style={{display:'flex', gap:8}}>
-            <Btn onClick={() => { setValues({}); setIdx(0); }}>Reset</Btn>
-            <Btn primary onClick={handleSave}>Save & Continue</Btn>
-          </div>
-        </Footer>
-      </Modal>
+            <OptionsContainer>
+              <ScaleContainer>
+                {currentQuestion.options.map((option) => (
+                  <OptionButton
+                    key={option.value}
+                    type="button"
+                    isSelected={currentValue === option.value}
+                    onClick={() => handleOptionSelect(option.value)}
+                    aria-label={`${option.label} - ${option.range}`}
+                  >
+                    <OptionRange isSelected={currentValue === option.value}>
+                      {option.range}
+                    </OptionRange>
+                    <OptionLabel isSelected={currentValue === option.value}>
+                      {option.label}
+                    </OptionLabel>
+                  </OptionButton>
+                ))}
+              </ScaleContainer>
+              <ScaleLabels>
+                <span>{currentQuestion.lowLabel}</span>
+                <span>{currentQuestion.highLabel}</span>
+              </ScaleLabels>
+            </OptionsContainer>
+          </QuestionContainer>
+        </ModalContent>
+
+        <ModalFooter singleButton={currentQuestionIndex === totalQuestions - 1 && allQuestionsAnswered}>
+          <ButtonGroup align="flex-start">
+            <Button
+              variant="secondary"
+              onClick={handlePrevious}
+              disabled={currentQuestionIndex === 0}
+            >
+              ← Previous
+            </Button>
+          </ButtonGroup>
+
+          <ButtonGroup align="flex-end">
+            {currentQuestionIndex < totalQuestions - 1 ? (
+              <Button
+                onClick={handleNext}
+                disabled={currentValue === null}
+              >
+                Next →
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSubmit}
+                disabled={!allQuestionsAnswered || isSubmitting}
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Evaluation'}
+              </Button>
+            )}
+          </ButtonGroup>
+        </ModalFooter>
+      </ModalContainer>
     </Overlay>
   );
 };

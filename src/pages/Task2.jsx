@@ -7,7 +7,6 @@ import Filters from '../components/Filters';
 import RequirementsChecklist from '../components/RequirementsChecklist';
 import useLogger from '../hooks/useLogger';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
-import QuestionnaireInline from '../components/QuestionnaireInline';
 
 const PageContainer = styled.div`
   padding: ${props => props.theme.spacing[6]} 0;
@@ -108,7 +107,7 @@ const Sidebar = styled.div`
 
 const Task2 = () => {
   const { log } = useLogger();
-  const { completeCurrentTask, openQuestionnaire, showQuestionnaire, questionnaireTaskId, onQuestionnaireSaved, closeQuestionnaire } = useTaskProgress();
+  const { completeCurrentTask } = useTaskProgress();
   const logger = useTask2Logger();
   // Expose logger globally for ProductCard click precision
   if (typeof window !== 'undefined') {
@@ -283,7 +282,7 @@ const Task2 = () => {
     }
   };
 
-  const handleCompleteTask = async () => {
+  const handleCompleteTask = () => {
     // Final validation - ensure ALL requirements are met
     const meetsPrice = selectedProduct && selectedProduct.price >= 800 && selectedProduct.price <= 1200;
     const meetsBrand = selectedProduct && ['Dell', 'Lenovo'].includes(selectedProduct.brand);
@@ -306,12 +305,7 @@ const Task2 = () => {
       product: selectedProduct,
       totalCost: selectedProduct.price
     });
-    try {
-      await openQuestionnaire('task_2_form');
-      completeCurrentTask();
-    } catch (e) {
-      console.warn('Questionnaire not completed for Task 2', e);
-    }
+    completeCurrentTask();
   };
 
   // Product hover/click logging for exploration
@@ -362,14 +356,6 @@ const Task2 = () => {
         
         {/* Main Content - Products */}
         <div>
-          {/* Inline questionnaire (if active for Task 2) */}
-          {showQuestionnaire && questionnaireTaskId === 'task_2_form' && (
-            <QuestionnaireInline
-              taskId={questionnaireTaskId}
-              onSaved={(payload, ok) => onQuestionnaireSaved(payload, ok)}
-              onClose={() => closeQuestionnaire()}
-            />
-          )}
           <ResultsInfo>
             <ResultsCount>
               Showing {filteredProducts.length} of {products.length} products

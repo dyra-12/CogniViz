@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import QuestionnaireModal from '../components/QuestionnaireModal';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { saveQuestionnaireResponse } from '../utils/tlx';
 
 const TaskProgressContext = createContext();
 
@@ -8,9 +8,11 @@ export const TaskProgressProvider = ({ children }) => {
   const [completedTasks, setCompletedTasks] = useState([]);
   const [consentGiven, setConsentGiven] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
-  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
-  const [questionnaireTaskId, setQuestionnaireTaskId] = useState(null);
-  const questionnaireResolver = useRef(null);
+  const [questionnaireData, setQuestionnaireData] = useState({
+    isOpen: false,
+    taskId: null,
+    onComplete: null
+  });
 
   // Load progress from localStorage on mount
   useEffect(() => {
@@ -36,7 +38,75 @@ export const TaskProgressProvider = ({ children }) => {
     localStorage.setItem('consentGiven', consentGiven ? 'true' : 'false');
   }, [consentGiven]);
 
+  /**
+   * Open the questionnaire modal for a specific task
+   * @param {string} taskId - The task identifier (e.g., 'task_1_form', 'task_2_form', 'task_3_form')
+   * @param {Function} onComplete - Callback to run after questionnaire is submitted
+   */
+  const openQuestionnaire = (taskId, onComplete) => {
+    setQuestionnaireData({
+      isOpen: true,
+      taskId,
+      onComplete
+    });
+  };
+
+  /**
+   * Close the questionnaire modal
+   */
+  const closeQuestionnaire = () => {
+    setQuestionnaireData({
+      isOpen: false,
+      taskId: null,
+      onComplete: null
+    });
+  };
+
+  /**
+   * Handle questionnaire submission
+   * @param {Object} responses - The questionnaire responses
+   */
+  const handleQuestionnaireSubmit = async (responses) => {
+    try {
+      // Save to localStorage
+      const savedResponse = saveQuestionnaireResponse(questionnaireData.taskId, responses);
+      console.log('Questionnaire saved:', savedResponse);
+
+      // Call the onComplete callback if provided
+      if (questionnaireData.onComplete) {
+        questionnaireData.onComplete();
+      }
+
+      // Close the modal
+      closeQuestionnaire();
+    } catch (error) {
+      console.error('Failed to save questionnaire:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Complete current task - this now triggers the questionnaire
+   */
   const completeCurrentTask = () => {
+    // Determine the task form ID based on current task
+    const taskFormId = `task_${currentTask}_form`;
+    
+    // Open questionnaire and handle completion
+    openQuestionnaire(taskFormId, () => {
+      // After questionnaire is submitted, mark task as completed
+      if (!completedTasks.includes(currentTask)) {
+        setCompletedTasks(prev => [...prev, currentTask]);
+      }
+      setCurrentTask(prev => prev + 1);
+      setShowInstructions(true);
+    });
+  };
+
+  /**
+   * Complete current task without questionnaire (for testing/debugging)
+   */
+  const completeCurrentTaskDirectly = () => {
     if (!completedTasks.includes(currentTask)) {
       setCompletedTasks(prev => [...prev, currentTask]);
     }
@@ -51,49 +121,21 @@ export const TaskProgressProvider = ({ children }) => {
     localStorage.removeItem('taskProgress');
   };
 
-  // Open questionnaire and return a Promise resolved when user saves or rejects when closed
-  const openQuestionnaire = (taskId = `task_${currentTask}_form`) => {
-    return new Promise((resolve, reject) => {
-      setQuestionnaireTaskId(taskId);
-      setShowQuestionnaire(true);
-      questionnaireResolver.current = { resolve, reject };
-    });
-  };
-
-  const closeQuestionnaire = () => {
-    setShowQuestionnaire(false);
-    setQuestionnaireTaskId(null);
-    if (questionnaireResolver.current) {
-      // if the modal was closed without saving, reject
-      questionnaireResolver.current.reject(new Error('questionnaire_closed'));
-      questionnaireResolver.current = null;
-    }
-  };
-
-  const onQuestionnaireSaved = (payload, ok) => {
-    if (questionnaireResolver.current) {
-      questionnaireResolver.current.resolve({ payload, ok });
-      questionnaireResolver.current = null;
-    }
-    // close modal
-    setShowQuestionnaire(false);
-    setQuestionnaireTaskId(null);
-  };
-
   const value = {
     currentTask,
     completedTasks,
     showInstructions,
     setShowInstructions,
     completeCurrentTask,
+    completeCurrentTaskDirectly,
     resetProgress,
-    // questionnaire api
+    consentGiven,
+    setConsentGiven,
+    // Questionnaire methods
+    questionnaireData,
     openQuestionnaire,
     closeQuestionnaire,
-    showQuestionnaire,
-    questionnaireTaskId,
-    onQuestionnaireSaved,
-    consentGiven, setConsentGiven
+    handleQuestionnaireSubmit
   };
 
   return (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
+import QuestionnaireInline from '../components/QuestionnaireInline';
 import useLogger from '../hooks/useLogger';
 import useTask3Logger from '../hooks/useTask3Logger';
 import { generateFlights, filterFlights } from '../data/flightService';
@@ -68,7 +69,7 @@ const ErrorMessage = styled.div`
 `;
 
 const Task3 = () => {
-  const { completeCurrentTask } = useTaskProgress();
+  const { completeCurrentTask, openQuestionnaire, showQuestionnaire, questionnaireTaskId, onQuestionnaireSaved, closeQuestionnaire } = useTaskProgress();
   const { log } = useLogger();
   const task3Logger = useTask3Logger();
   
@@ -440,8 +441,13 @@ const Task3 = () => {
     }
   };
 
-  const handleComplete = () => {
-    completeCurrentTask();
+  const handleComplete = async () => {
+    try {
+      await openQuestionnaire('task_3_form');
+      completeCurrentTask();
+    } catch (e) {
+      console.warn('Questionnaire not completed for Task 3', e);
+    }
   };
 
   if (isCompleted) {

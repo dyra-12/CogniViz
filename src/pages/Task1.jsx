@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import useLogger from '../hooks/useLogger';
 import useTask1Logger from '../hooks/useTask1Logger';
 import { useTaskProgress } from '../contexts/TaskProgressContext'; // Add this import
+import QuestionnaireInline from '../components/QuestionnaireInline';
 
 // Styled Components for the form
 const FormContainer = styled.div`
@@ -107,7 +108,7 @@ const TwoColumnGrid = styled.div`
 // Main Component
 const Task1 = () => {
   const { log } = useLogger();
-  const { completeCurrentTask } = useTaskProgress();
+  const { completeCurrentTask, openQuestionnaire, showQuestionnaire, questionnaireTaskId, onQuestionnaireSaved, closeQuestionnaire } = useTaskProgress();
   const logger = useTask1Logger();
   const formRef = useRef();
 
@@ -249,14 +250,29 @@ const Task1 = () => {
         <SuccessMessage>
           <h3>✅ Success!</h3>
           <p>Your shipping information has been submitted successfully.</p>
-          <Button 
-            onClick={() => {
-              completeCurrentTask(); // This moves to next task
-            }}
-            style={{ marginTop: '1rem' }}
-          >
-            Continue to Next Task
-          </Button>
+          {/* Render inline questionnaire instead of popup when active */}
+          {showQuestionnaire && questionnaireTaskId === 'task_1_form' ? (
+            <QuestionnaireInline
+              taskId={questionnaireTaskId}
+              onSaved={(payload, ok) => onQuestionnaireSaved(payload, ok)}
+              onClose={() => closeQuestionnaire()}
+            />
+          ) : (
+            <Button 
+              onClick={async () => {
+                try {
+                  await openQuestionnaire('task_1_form');
+                  completeCurrentTask(); // move to next task only after successful save
+                } catch (e) {
+                  // user closed questionnaire or save failed; keep them here
+                  console.warn('Questionnaire not completed', e);
+                }
+              }}
+              style={{ marginTop: '1rem' }}
+            >
+              Continue to Next Task
+            </Button>
+          )}
         </SuccessMessage>
       </FormContainer>
     );

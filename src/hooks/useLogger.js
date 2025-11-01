@@ -1,6 +1,4 @@
 import { useCallback, useContext } from 'react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../utils/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 const useLogger = () => {
@@ -14,7 +12,9 @@ const useLogger = () => {
       participantId, // From context
       eventName,
       eventData,
-      timestamp: serverTimestamp(), // Use server time for accuracy
+      // Using client timestamp instead of serverTimestamp since we're no longer
+      // writing to Firestore. This prevents accidental network calls.
+      timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent,
       url: window.location.href,
       logId // Unique ID for this log
@@ -23,13 +23,11 @@ const useLogger = () => {
     // For debugging: always log to console
     console.log('[LOG]', eventName, logEntry);
 
-    try {
-      // Write to Firestore. We use the unique logId as the document ID.
-      await setDoc(doc(db, 'logs', logId), logEntry);
-    } catch (error) {
-      console.error('Error writing log to Firebase:', error);
-      // It's often better to fail silently for logging so it doesn't break the user experience.
-    }
+    // NOTE: Sending logs to Firebase has been disabled.
+    // If you need to re-enable remote logging in the future, add a feature flag
+    // or restore the Firestore write here. For now we only emit the log to
+    // the browser console so no data is transmitted to Firebase.
+    // (No-op for remote write)
   }, [participantId]); // participantId is a dependency
 
   return { log };

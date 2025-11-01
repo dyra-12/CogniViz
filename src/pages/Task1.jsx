@@ -4,6 +4,8 @@ import Button from '../components/Button';
 import useLogger from '../hooks/useLogger';
 import useTask1Logger from '../hooks/useTask1Logger';
 import { useTaskProgress } from '../contexts/TaskProgressContext'; // Add this import
+import { useAuth } from '../contexts/AuthContext';
+import { sendTask1Metrics } from '../utils/dataCollection';
 
 // Styled Components for the form
 const FormContainer = styled.div`
@@ -110,6 +112,7 @@ const Task1 = () => {
   const { completeCurrentTask } = useTaskProgress();
   const logger = useTask1Logger();
   const formRef = useRef();
+  const { participantId } = useAuth();
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -243,19 +246,47 @@ const Task1 = () => {
     }
   };
 
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(null);
+
+  const handleContinueToNext = async () => {
+    setSendError(null);
+    setSending(true);
+    try {
+      // Ensure latest metrics are saved
+      try { logger.saveToLocalStorage(); } catch (e) { /* ignore */ }
+      const res = await sendTask1Metrics({ participantId });
+      if (!res.ok) {
+        throw res.error || new Error('Failed to send Task 1 metrics');
+      }
+      // Optionally remember the doc id
+      localStorage.setItem('task1_docId', res.id);
+      completeCurrentTask();
+    } catch (e) {
+      console.error('Task1 upload failed:', e);
+      setSendError(e?.message || 'Failed to upload Task 1 metrics');
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (isSubmitted) {
     return (
       <FormContainer>
         <SuccessMessage>
           <h3>✅ Success!</h3>
           <p>Your shipping information has been submitted successfully.</p>
-          <Button 
-            onClick={() => {
-              completeCurrentTask(); // This moves to next task
-            }}
+          {sendError && (
+            <p style={{ color: '#d9534f', marginTop: '0.5rem' }}>
+              {sendError}
+            </p>
+          )}
+          <Button
+            onClick={handleContinueToNext}
             style={{ marginTop: '1rem' }}
+            disabled={sending}
           >
-            Continue to Next Task
+            {sending ? 'Uploading…' : 'Continue to Next Task'}
           </Button>
         </SuccessMessage>
       </FormContainer>

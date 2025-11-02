@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// For Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDpAeHRK5FAFd_hhRBRFFDV6LgziXA-5qE",
   authDomain: "my-research-platform.firebaseapp.com",
@@ -12,6 +12,7 @@ const firebaseConfig = {
   messagingSenderId: "945020375498",
   appId: "1:945020375498:web:ba90e6ca1f06f70e237f33",
   measurementId: "G-GREN6E8YFQ"
+
 };
 
 // Initialize Firebase

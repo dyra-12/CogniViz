@@ -1,6 +1,7 @@
 // Utilities for collecting and sending study data
 import { db } from './firebase';
 import { addDoc, collection } from 'firebase/firestore';
+import { getAllQuestionnaireResponses } from './tlx';
 
 /**
  * Read Task 1 metrics from localStorage and send to Firestore.
@@ -64,6 +65,97 @@ export async function sendTask1Metrics({ participantId: pidFromArg } = {}) {
 	}
 }
 
+/**
+ * Build aggregated study payload from localStorage for all tasks and questionnaires.
+ * Returns a plain object; does not perform any network calls.
+ */
+export function buildAggregatedStudyPayload() {
+	const participantId = localStorage.getItem('participantId') || null;
+
+	const task1Raw = localStorage.getItem('task_1_data');
+	const task2Raw = localStorage.getItem('task_2_data');
+	const task3Raw = (() => {
+		const byKey = localStorage.getItem('task 3');
+		if (byKey) return byKey;
+		const keys = Object.keys(localStorage).filter(k => k && k.startsWith('task3_metrics_'));
+		if (keys.length === 0) return null;
+		let best = null;
+		for (const k of keys) {
+			try {
+				const parsed = JSON.parse(localStorage.getItem(k));
+				if (!parsed) continue;
+				if (!best) best = { key: k, data: parsed };
+				else {
+					const a = parsed.last_saved_ts || parsed.lastSavedTs || null;
+					const b = best.data.last_saved_ts || best.data.lastSavedTs || null;
+					if (a && b) {
+						if (new Date(a) > new Date(b)) best = { key: k, data: parsed };
+					} else {
+						best = { key: k, data: parsed };
+					}
+				}
+			} catch (e) { /* ignore parse errors */ }
+		}
+		return best ? JSON.stringify(best.data) : null;
+	})();
+
+	const task1 = task1Raw ? safeParse(task1Raw) : null;
+	const task2 = task2Raw ? safeParse(task2Raw) : null;
+	const task3 = task3Raw ? safeParse(task3Raw) : null;
+
+	const nasaResponsesRaw = localStorage.getItem('nasa_tlx_responses');
+	const nasaResponses = nasaResponsesRaw ? safeParse(nasaResponsesRaw, []) : getAllQuestionnaireResponses();
+
+	const id = participantId || genId();
+
+	return {
+		id,
+		participantId,
+		timestamp: new Date().toISOString(),
+		task_metrics: {
+			task_1: task1,
+			task_2: task2,
+			task_3: task3,
+		},
+		nasa_tlx_responses: nasaResponses,
+		meta: {
+			app: 'CogniViz',
+			version: typeof process !== 'undefined' ? (process.env.npm_package_version || null) : null,
+		}
+	};
+}
+
+/**
+ * Send aggregated study data to Firestore collection 'study_responses'.
+ * De-duplicates via localStorage key 'submission_sent'.
+ */
+export async function sendAggregatedStudyData() {
+	// Prevent duplicate submissions per session
+	if (localStorage.getItem('submission_sent') === 'true') {
+		return { ok: true, id: localStorage.getItem('submission_docId') || null, duplicate: true };
+	}
+
+	const payload = buildAggregatedStudyPayload();
+	const colRef = collection(db, 'study_responses');
+	const docRef = await addDoc(colRef, payload);
+	try {
+		localStorage.setItem('submission_sent', 'true');
+		localStorage.setItem('submission_docId', docRef.id);
+	} catch (_) { /* ignore */ }
+	return { ok: true, id: docRef.id };
+}
+
+// Helpers
+function genId() {
+	return Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+}
+
+function safeParse(raw, fallback = null) {
+	try { return JSON.parse(raw); } catch { return fallback; }
+}
+
 export default {
 	sendTask1Metrics,
+	buildAggregatedStudyPayload,
+	sendAggregatedStudyData,
 };

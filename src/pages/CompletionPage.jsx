@@ -1,11 +1,7 @@
 import styled from 'styled-components';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import { useAuth } from '../contexts/AuthContext';
-// NOTE: Firebase uploads are intentionally disabled by default in this build.
-// To re-enable server uploads set FIREBASE_UPLOADS_ENABLED to true or use
-// an env flag and restart the app.
-const FIREBASE_UPLOADS_ENABLED = false;
-import { getAllQuestionnaireResponses } from '../utils/tlx';
+import { sendAggregatedStudyData, buildAggregatedStudyPayload } from '../utils/dataCollection';
 import Button from '../components/Button';
 import { useEffect, useState } from 'react';
 
@@ -136,7 +132,7 @@ const Divider = styled.hr`
 
 const CompletionPage = () => {
   const { resetProgress, completedTasks } = useTaskProgress();
-  const responses = getAllQuestionnaireResponses();
+  const responses = (buildAggregatedStudyPayload()?.nasa_tlx_responses) || [];
   const { participantId } = useAuth();
   const [sendStatus, setSendStatus] = useState('idle'); // idle | sending | sent | failed
 
@@ -154,81 +150,9 @@ const CompletionPage = () => {
   // Send aggregated study data to Firebase Firestore
   const sendDataToFirebase = async () => {
     try {
-      // Prevent duplicate submissions
-      if (localStorage.getItem('submission_sent') === 'true') return null;
-
-      const participantId = localStorage.getItem('participantId') || null;
-
-      // Collect task metrics
-      const task1Raw = localStorage.getItem('task_1_data');
-      const task2Raw = localStorage.getItem('task_2_data');
-      const task3Raw = (() => {
-        // Prefer the explicit 'task 3' key if present, otherwise pick latest task3_metrics_*
-        const byKey = localStorage.getItem('task 3');
-        if (byKey) return byKey;
-        // Find keys starting with task3_metrics_
-        const keys = Object.keys(localStorage).filter(k => k && k.startsWith('task3_metrics_'));
-        if (keys.length === 0) return null;
-        // pick the most recent by trying to parse last_saved_ts if available, otherwise the last key
-        let best = null;
-        for (const k of keys) {
-          try {
-            const parsed = JSON.parse(localStorage.getItem(k));
-            if (!parsed) continue;
-            if (!best) best = { key: k, data: parsed };
-            else {
-              const a = parsed.last_saved_ts || parsed.lastSavedTs || null;
-              const b = best.data.last_saved_ts || best.data.lastSavedTs || null;
-              if (a && b) {
-                if (new Date(a) > new Date(b)) best = { key: k, data: parsed };
-              } else {
-                best = { key: k, data: parsed };
-              }
-            }
-          } catch (e) { /* ignore parse errors */ }
-        }
-        return best ? JSON.stringify(best.data) : null;
-      })();
-
-      const task1 = task1Raw ? JSON.parse(task1Raw) : null;
-      const task2 = task2Raw ? JSON.parse(task2Raw) : null;
-      const task3 = task3Raw ? JSON.parse(task3Raw) : null;
-
-      // Collect NASA-TLX responses
-      const nasaResponsesRaw = localStorage.getItem('nasa_tlx_responses');
-      const nasaResponses = nasaResponsesRaw ? JSON.parse(nasaResponsesRaw) : [];
-
-      const payload = {
-        participantId,
-        timestamp: new Date().toISOString(),
-        task_metrics: {
-          task_1: task1,
-          task_2: task2,
-          task_3: task3,
-        },
-        nasa_tlx_responses: nasaResponses,
-        meta: {
-          app: 'CogniViz',
-          version: process.env.npm_package_version || null,
-        }
-      };
-
-      // If uploads are disabled, persist the payload locally for debugging
-      // and mark the submission as disabled. This prevents any network calls
-      // to Firebase while keeping the payload available for manual upload.
-      if (!FIREBASE_UPLOADS_ENABLED) {
-        try {
-          localStorage.setItem('submission_disabled', 'true');
-          localStorage.setItem('submission_payload', JSON.stringify(payload));
-        } catch (e) {
-          // ignore localStorage errors
-        }
-        setSendStatus('disabled');
-        return null;
-      }
-
-      // NOTE: Firebase uploads are disabled by default in this build. If you
-      // enable FIREBASE_UPLOADS_ENABLED, restore the Firestore write here.
+      const res = await sendAggregatedStudyData();
+      if (!res.ok) return null;
+      return res.id;
     } catch (error) {
       console.error('Failed to send data to Firebase:', error);
       setSendStatus('failed');
@@ -241,12 +165,6 @@ const CompletionPage = () => {
     let mounted = true;
     (async () => {
       if (!mounted) return;
-      if (!FIREBASE_UPLOADS_ENABLED) {
-        // Skip remote upload and mark as disabled
-        setSendStatus('disabled');
-        return;
-      }
-
       setSendStatus('sending');
       const id = await sendDataToFirebase();
       if (!mounted) return;

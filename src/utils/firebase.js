@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
-// For Firebase config
+// For Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDpAeHRK5FAFd_hhRBRFFDV6LgziXA-5qE",
   authDomain: "my-research-platform.firebaseapp.com",

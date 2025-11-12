@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import Button from '../Button';
 
 const SchedulerContainer = styled.div`
   background: ${props => props.theme.colors.white};
@@ -6,6 +7,13 @@ const SchedulerContainer = styled.div`
   border-radius: ${props => props.theme.borderRadius.xl};
   box-shadow: ${props => props.theme.shadows.md};
   margin-bottom: ${props => props.theme.spacing[6]};
+`;
+
+const HeaderContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${props => props.theme.spacing[3]};
 `;
 
 const CalendarGrid = styled.div`
@@ -88,7 +96,7 @@ const ComplexIntro = styled.div`
   color: ${props => props.theme.colors.danger};
 `;
 
-const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onMeetingDropAttempt, onComponentEnter }) => {
+const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onMeetingDropAttempt, onComponentEnter, onResetMeetings }) => {
   const days = [1, 2, 3, 4];
   const hours = [9, 10, 11, 12, 13, 14, 15, 16]; // 9AM-4PM
 
@@ -149,7 +157,18 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onM
 
   return (
     <SchedulerContainer onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Meetings'); }}>
-      <h3>Schedule Your Meetings</h3>
+      <HeaderContainer>
+        <h3>Schedule Your Meetings</h3>
+        {onResetMeetings && (
+          <Button 
+            variant="secondary" 
+            onClick={onResetMeetings}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+          >
+            🔄 Start from Beginning
+          </Button>
+        )}
+      </HeaderContainer>
       
       <ComplexIntro>
         <strong>Complex Constraints:</strong> Each meeting has specific day, time, and dependency requirements. Check the badges below each meeting for details.

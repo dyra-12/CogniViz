@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import Header from './Header';
 import InstructionModal from './InstructionModal';
@@ -18,6 +18,8 @@ const AppLayout = () => {
     questionnaireData,
     handleQuestionnaireSubmit
   } = useTaskProgress();
+
+  const location = useLocation();
 
   const getCurrentComponent = () => {
     switch (currentTask) {
@@ -45,7 +47,7 @@ const AppLayout = () => {
         </Routes>
       </main>
 
-      {showInstructions && currentTask < 4 && consentGiven && (
+      {showInstructions && currentTask < 4 && consentGiven && !location.pathname.startsWith('/consent') && (
         <InstructionModal 
           taskNumber={currentTask} 
           onClose={() => setShowInstructions(false)} 

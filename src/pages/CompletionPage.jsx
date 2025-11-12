@@ -132,17 +132,86 @@ const Divider = styled.hr`
 
 const CompletionPage = () => {
   const { resetProgress, completedTasks } = useTaskProgress();
-  const responses = (buildAggregatedStudyPayload()?.nasa_tlx_responses) || [];
+  const aggregated = buildAggregatedStudyPayload();
+  const responses = (aggregated?.nasa_tlx_responses) || [];
   const { participantId } = useAuth();
   const [sendStatus, setSendStatus] = useState('idle'); // idle | sending | sent | failed
 
   const handleDownloadData = () => {
+    // Download aggregated NASA responses (legacy behavior)
     const dataStr = JSON.stringify(responses, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `study-data-${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `nasa-responses-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadAllAggregated = () => {
+    // Download the complete aggregated payload (task metrics + nasa responses + meta)
+    const payload = aggregated || buildAggregatedStudyPayload();
+    const dataStr = JSON.stringify(payload, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cogniviz-aggregated-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const nasaResponsesToCsv = (arr) => {
+    if (!Array.isArray(arr) || arr.length === 0) return '';
+    // Build CSV header from known fields
+    const headers = [
+      'task_id',
+      'timestamp',
+      'raw_tlx_score',
+      'mental_demand',
+      'physical_demand',
+      'temporal_demand',
+      'performance',
+      'effort',
+      'frustration'
+    ];
+
+    const rows = arr.map(r => {
+      const scores = r?.nasa_tlx_scores || {};
+      return [
+        escapeCsv(String(r.task_id || '')),
+        escapeCsv(String(r.timestamp || '')),
+        escapeCsv(String(r.raw_tlx_score ?? '')),
+        escapeCsv(String(scores.mental_demand ?? '')),
+        escapeCsv(String(scores.physical_demand ?? '')),
+        escapeCsv(String(scores.temporal_demand ?? '')),
+        escapeCsv(String(scores.performance ?? '')),
+        escapeCsv(String(scores.effort ?? '')),
+        escapeCsv(String(scores.frustration ?? '')),
+      ].join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
+  };
+
+  const escapeCsv = (val) => {
+    if (val == null) return '';
+    const s = String(val);
+    if (s.includes(',') || s.includes('\n') || s.includes('"')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const handleDownloadNasaCsv = () => {
+    const csv = nasaResponsesToCsv(responses);
+    if (!csv) return;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nasa-responses-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -228,7 +297,13 @@ const CompletionPage = () => {
 
       <ButtonGroup>
         <Button variant="secondary" onClick={handleDownloadData}>
-          Download My Data
+          Download My Data (JSON)
+        </Button>
+        <Button variant="secondary" onClick={handleDownloadNasaCsv}>
+          Download NASA (CSV)
+        </Button>
+        <Button variant="primary" onClick={handleDownloadAllAggregated}>
+          Download All Metrics (JSON)
         </Button>
         <Button onClick={resetProgress}>
           Start Over

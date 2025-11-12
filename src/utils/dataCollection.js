@@ -130,29 +130,19 @@ export function buildAggregatedStudyPayload() {
  * De-duplicates via localStorage key 'submission_sent'.
  */
 export async function sendAggregatedStudyData() {
-	try {
-		// Prevent duplicate submissions per session
-		if (localStorage.getItem('submission_sent') === 'true') {
-			return { ok: true, id: localStorage.getItem('submission_docId') || null, duplicate: true };
-		}
-
-		const payload = buildAggregatedStudyPayload();
-		const colRef = collection(db, 'study_responses');
-		const docRef = await addDoc(colRef, payload);
-		try {
-			localStorage.setItem('submission_sent', 'true');
-			localStorage.setItem('submission_docId', docRef.id);
-		} catch (_) { /* ignore */ }
-		return { ok: true, id: docRef.id };
-	} catch (error) {
-		const msg = (error && (error.message || error.code)) || String(error);
-		let hint;
-		if (msg && msg.includes('Missing or insufficient permissions')) {
-			hint = 'Missing or insufficient permissions. Ensure Firestore rules allow create on collection "study_responses" and that Anonymous Auth is enabled (or adjust rules).';
-		}
-		const wrapped = hint ? new Error(hint) : error;
-		return { ok: false, error: wrapped };
+	// Prevent duplicate submissions per session
+	if (localStorage.getItem('submission_sent') === 'true') {
+		return { ok: true, id: localStorage.getItem('submission_docId') || null, duplicate: true };
 	}
+
+	const payload = buildAggregatedStudyPayload();
+	const colRef = collection(db, 'study_responses');
+	const docRef = await addDoc(colRef, payload);
+	try {
+		localStorage.setItem('submission_sent', 'true');
+		localStorage.setItem('submission_docId', docRef.id);
+	} catch (_) { /* ignore */ }
+	return { ok: true, id: docRef.id };
 }
 
 // Helpers

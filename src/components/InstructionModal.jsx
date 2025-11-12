@@ -93,17 +93,25 @@ const InstructionModal = ({ taskNumber, onClose }) => {
           title: 'Task 2: Find a Laptop Matching Specific Requirements',
           goal: 'Find and select a laptop that meets all of the following criteria using the filter system.',
           steps: [
-            'Price: Between $800 and $1200',
-            'Brand: Dell or Lenovo (select both)',
-            'Rating: 4 stars or higher',
-            'RAM: 16GB or more',
-            '---',
-            'Steps to Complete:',
-            '• Use the filter panel on the left side to set each requirement',
-            '• Apply all four filters until only matching laptops remain',
-            '• Hover over any laptop card to see detailed specifications',
-            '• Click "Add to Cart" on any laptop that meets all criteria',
-            '• Click "Proceed to Checkout" to complete the task'
+            '📋 Required Criteria:',
+            '',
+            '💰 Price: Between $800 and $1,200',
+            '🏷️ Brand: Dell OR Lenovo (select both brands)',
+            '⭐ Rating: 4 stars or higher',
+            '💾 RAM: 16GB or more',
+            '',
+            '─────────────────────────',
+            '',
+            '📝 Steps to Complete:',
+            '',
+            '1️⃣ Use the filter panel on the left to set each requirement',
+            '2️⃣ Apply all four filters until only matching laptops are shown',
+            '3️⃣ Review the filtered results in the product grid',
+            '4️⃣ Hover over laptop cards to see detailed specifications',
+            '5️⃣ Click "Add to Cart" on ANY laptop that meets all criteria',
+            '6️⃣ Click "Complete Task" to finish',
+            '',
+            '💡 Tip: The requirements checklist on the right tracks your progress!'
           ]
         };
       case 3:
@@ -139,9 +147,22 @@ const InstructionModal = ({ taskNumber, onClose }) => {
         <Instructions>
           <h3>What you need to do:</h3>
           <ul>
-            {instructions.steps.map((step, index) => (
-              <li key={index}>{step}</li>
-            ))}
+            {instructions.steps.map((step, index) => {
+              // Handle empty lines (for spacing)
+              if (step === '') {
+                return <li key={index} style={{ listStyle: 'none', height: '0.5rem' }}></li>;
+              }
+              // Handle dividers
+              if (step.includes('─────')) {
+                return <li key={index} style={{ listStyle: 'none', margin: '0.5rem 0' }}>{step}</li>;
+              }
+              // Handle section headers (lines ending with :)
+              if (step.endsWith(':') || step.startsWith('📋') || step.startsWith('📝')) {
+                return <li key={index} style={{ listStyle: 'none', fontWeight: 'bold', marginTop: '0.5rem' }}>{step}</li>;
+              }
+              // Regular list items
+              return <li key={index}>{step}</li>;
+            })}
           </ul>
         </Instructions>
 

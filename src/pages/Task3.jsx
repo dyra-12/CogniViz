@@ -267,6 +267,19 @@ const Task3 = () => {
     }
   };
 
+  const handleResetMeetings = () => {
+    // Reset all meetings to unscheduled state
+    setMeetings(prev => prev.map(meeting => ({
+      ...meeting,
+      scheduled: false,
+      day: undefined,
+      startTime: undefined
+    })));
+    // Clear any meeting-related validation errors
+    setValidationErrors(prev => prev.filter(msg => typeof msg === 'string' ? !msg.includes('meeting') && !msg.includes('Meeting') : true));
+    log('meetings_reset');
+  };
+
   const validateConstraints = () => {
     const errors = [];
 
@@ -513,6 +526,7 @@ const Task3 = () => {
             onMeetingDragStart={handleMeetingDragStart}
             onMeetingDropAttempt={handleMeetingDropAttempt}
             onComponentEnter={handleComponentEnter}
+            onResetMeetings={handleResetMeetings}
           />
         </MainContent>
 

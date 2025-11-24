@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import { publishTaskMetrics } from '../telemetry/taskMetricsBus';
 
 // Simple UUID v4 (small, local use only)
 const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -36,6 +37,18 @@ const useTask3Logger = (opts = {}) => {
     computed: { rapid_selection_buffer: [] }
   });
 
+  useEffect(() => {
+    publishTaskMetrics('task3', dataRef.current);
+  }, []);
+
+  const broadcastThrottle = useRef(0);
+  const broadcastSnapshot = () => {
+    const now = Date.now();
+    if (now - broadcastThrottle.current < 250) return;
+    broadcastThrottle.current = now;
+    publishTaskMetrics('task3', dataRef.current);
+  };
+
   // Hover timers
   const hoverTimers = useRef({}); // key -> {start: ms}
 
@@ -53,17 +66,21 @@ const useTask3Logger = (opts = {}) => {
 
   const markStart = () => {
     if (!dataRef.current.start_time) dataRef.current.start_time = nowISO();
-    touch();
+    touchAndBroadcast();
   };
 
   const markEnd = (success = null) => {
     if (!dataRef.current.end_time) dataRef.current.end_time = nowISO();
     if (success !== null) dataRef.current.success = !!success;
     dataRef.current.last_saved_ts = nowISO();
-    touch();
+    touchAndBroadcast();
   };
 
   const touch = () => { dataRef.current.last_saved_ts = nowISO(); };
+  const touchAndBroadcast = () => {
+    touch();
+    broadcastSnapshot();
+  };
 
   const flushToLocalStorage = () => {
     try {
@@ -91,6 +108,7 @@ const useTask3Logger = (opts = {}) => {
         const end = now;
         safePush(dataRef.current.idle_periods, { start: new Date(start).toISOString(), end: new Date(end).toISOString(), duration_ms: end - start });
         idleState.current.idleStart = null;
+        broadcastSnapshot();
       }
       idleState.current.lastActivity = now;
     };
@@ -193,6 +211,7 @@ const useTask3Logger = (opts = {}) => {
       // Start sampling for this area
       startSampling(category);
       dataRef.current.total_actions += 0; // no-op but touch
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `hoverStart failed ${e.message}` });
     }
@@ -215,6 +234,7 @@ const useTask3Logger = (opts = {}) => {
       if (category === 'flights') dataRef.current.flights.mouse_entropy = entropy;
       else if (category === 'hotels') dataRef.current.hotels.mouse_entropy = entropy;
       else if (category === 'transportation') dataRef.current.transportation.mouse_entropy = entropy;
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `hoverEnd failed ${e.message}` });
     }
@@ -245,6 +265,7 @@ const useTask3Logger = (opts = {}) => {
       dataRef.current.total_actions++;
       // budget update
       pushBudgetUpdate('flight', { flight_id: flight.id, price: flight.price });
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `flightSelect failed ${e.message}` });
     }
@@ -260,6 +281,7 @@ const useTask3Logger = (opts = {}) => {
       registerRapidSelection('hotels');
       dataRef.current.total_actions++;
       pushBudgetUpdate('hotel', { hotel_id: hotel.id, price: hotel.totalPrice });
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `hotelSelect failed ${e.message}` });
     }
@@ -274,6 +296,7 @@ const useTask3Logger = (opts = {}) => {
       registerRapidSelection('transportation');
       dataRef.current.total_actions++;
       pushBudgetUpdate('transport', { transport_id: transport.id, price: transport.price });
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `transportSelect failed ${e.message}` });
     }
@@ -298,6 +321,7 @@ const useTask3Logger = (opts = {}) => {
         dataRef.current.computed_signals.rapid_selection_changes++;
         // clear buffer to avoid double counting
         selectionBuffers.current[category] = [];
+        broadcastSnapshot();
       }
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `rapidSelect failed ${e.message}` });
@@ -316,6 +340,7 @@ const useTask3Logger = (opts = {}) => {
         existing.attempts.push({ start_ts: ts });
       }
       dataRef.current.total_actions++;
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `meetingDragStart failed ${e.message}` });
     }
@@ -337,6 +362,7 @@ const useTask3Logger = (opts = {}) => {
         dataRef.current.meetings.drag_attempts.push({ meeting_id: meetingId, attempts: [{ start_ts: ts, attempted_slot: `${day} ${hour}:00`, valid, reason, duration_ms: 0 }], placement_duration_ms: valid ? 0 : null, final_slot: valid ? `${day} ${hour}:00` : null, placed: !!valid });
       }
       dataRef.current.total_actions++;
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `meetingDropAttempt failed ${e.message}` });
     }
@@ -383,14 +409,15 @@ const useTask3Logger = (opts = {}) => {
       }
 
       dataRef.current.last_saved_ts = ts;
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `budgetUpdate failed ${e.message}` });
     }
   };
 
-  const incrementError = () => { dataRef.current.error_count++; };
+  const incrementError = () => { dataRef.current.error_count++; broadcastSnapshot(); };
 
-  const componentSwitch = (tab) => { safePush(dataRef.current.component_switches, { tab, ts: nowISO() }); };
+  const componentSwitch = (tab) => { safePush(dataRef.current.component_switches, { tab, ts: nowISO() }); broadcastSnapshot(); };
 
   const finalizeAndSave = (success) => {
     try {
@@ -401,6 +428,7 @@ const useTask3Logger = (opts = {}) => {
       if (lastUpdate && lastUpdate.new_total !== null) dataRef.current.budget.current_total = lastUpdate.new_total;
       dataRef.current.completed = !!success;
       flushToLocalStorage();
+      broadcastSnapshot();
     } catch (e) {
       dataRef.current.internal_errors.push({ ts: nowISO(), message: `finalize failed ${e.message}` });
     }

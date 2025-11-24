@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import { publishTaskMetrics } from '../telemetry/taskMetricsBus';
 
 // Utility: get ISO8601 timestamp
 const nowISO = () => new Date().toISOString();
@@ -33,6 +34,18 @@ const useTask1Logger = () => {
 			field_sequence: [],
 		},
 	});
+	useEffect(() => {
+		publishTaskMetrics('task1', dataRef.current);
+	}, []);
+
+
+	const broadcastThrottle = useRef(0);
+	const broadcastSnapshot = () => {
+		const now = Date.now();
+		if (now - broadcastThrottle.current < 250) return;
+		broadcastThrottle.current = now;
+		publishTaskMetrics('task1', dataRef.current);
+	};
 
 	// --- Internal state for field focus timing, etc. ---
 			const fieldTimers = useRef({}); // { field_name: { focusStart: ms, total: ms } }
@@ -53,6 +66,7 @@ const useTask1Logger = () => {
 					lastField.current = field_name;
 				}
 				// No-op for edit count: we only check on blur or pause
+				broadcastSnapshot();
 			};
 
 			const onFieldBlur = (field_name, value = '') => {
@@ -69,6 +83,7 @@ const useTask1Logger = () => {
 					typingTimeouts.current[field_name] = null;
 				}
 				updateFieldInteraction(field_name);
+				broadcastSnapshot();
 			};
 
 			const onFieldChange = (field_name, value = '', userInitiated = true) => {
@@ -80,7 +95,9 @@ const useTask1Logger = () => {
 				typingTimeouts.current[field_name] = setTimeout(() => {
 					checkAndCountEdit(field_name, value);
 					updateFieldInteraction(field_name);
+					broadcastSnapshot();
 				}, 1500);
+				broadcastSnapshot();
 			};
 
 			// Helper: check if value is a new edit, and count it if so
@@ -101,6 +118,7 @@ const useTask1Logger = () => {
 		if (!fieldBackspaces.current[field_name]) fieldBackspaces.current[field_name] = 0;
 		fieldBackspaces.current[field_name]++;
 		updateFieldInteraction(field_name);
+		broadcastSnapshot();
 	};
 
 	// Helper: update field_interactions array for a field
@@ -136,6 +154,7 @@ const useTask1Logger = () => {
 				coordinates: e.type.startsWith('mouse') ? { x: e.clientX, y: e.clientY } : undefined,
 				key: e.type.startsWith('key') ? e.key : undefined,
 			});
+			broadcastSnapshot();
 		};
 		window.addEventListener('mousemove', mouseHandler);
 		window.addEventListener('mousedown', mouseHandler);
@@ -154,14 +173,17 @@ const useTask1Logger = () => {
 	// --- SHIPPING METHOD ---
 	const onShippingMethodChange = () => {
 		dataRef.current.task_specific_metrics.shipping_method_changes++;
+		broadcastSnapshot();
 	};
 
 	// --- HELP & ERROR ---
 	const logHelpRequest = () => {
 		dataRef.current.summary_metrics.help_requests++;
+		broadcastSnapshot();
 	};
 	const logError = () => {
 		dataRef.current.summary_metrics.error_count++;
+		broadcastSnapshot();
 	};
 
 	// --- TIMESTAMPS ---
@@ -169,6 +191,7 @@ const useTask1Logger = () => {
 		if (!dataRef.current.timestamps.start) {
 			dataRef.current.timestamps.start = nowISO();
 		}
+		broadcastSnapshot();
 	};
 	const markEnd = (success = true) => {
 		if (!dataRef.current.timestamps.end) {
@@ -179,6 +202,7 @@ const useTask1Logger = () => {
 			const end = new Date(dataRef.current.timestamps.end).getTime();
 			dataRef.current.summary_metrics.total_time_ms = end - start;
 		}
+		broadcastSnapshot();
 	};
 
 	// --- SAVE ---
@@ -187,6 +211,7 @@ const useTask1Logger = () => {
 		const d = dataRef.current;
 		if (!d.timestamps.start || !d.timestamps.end) return false;
 		localStorage.setItem('task_1_data', JSON.stringify({ task_1_data: d }));
+		broadcastSnapshot();
 		return true;
 	};
 

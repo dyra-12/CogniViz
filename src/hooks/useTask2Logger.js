@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import { publishTaskMetrics } from '../telemetry/taskMetricsBus';
 
 // Utility functions
 const nowISO = () => new Date().toISOString();
@@ -40,6 +41,18 @@ const useTask2Logger = () => {
     },
   });
 
+  useEffect(() => {
+    publishTaskMetrics('task2', dataRef.current);
+  }, []);
+
+  const broadcastThrottle = useRef(0);
+  const broadcastSnapshot = () => {
+    const now = Date.now();
+    if (now - broadcastThrottle.current < 250) return;
+    broadcastThrottle.current = now;
+    publishTaskMetrics('task2', dataRef.current);
+  };
+
   // --- Internal state ---
   const filterFirstUse = useRef({});
   const filterLastValues = useRef({});
@@ -63,6 +76,7 @@ const useTask2Logger = () => {
     if (!dataRef.current.timestamps.start) {
       dataRef.current.timestamps.start = nowISO();
     }
+    broadcastSnapshot();
   };
   const markEnd = () => {
     if (!dataRef.current.timestamps.end) {
@@ -71,6 +85,7 @@ const useTask2Logger = () => {
       const start = new Date(dataRef.current.timestamps.start).getTime();
       const end = new Date(dataRef.current.timestamps.end).getTime();
       dataRef.current.summary_metrics.total_time_ms = end - start;
+      broadcastSnapshot();
     }
   };
 
@@ -96,12 +111,15 @@ const useTask2Logger = () => {
     lastFilterType.current = filter_type;
     lastFilterTime.current = nowMS();
     lastFilterSetTime.current = nowMS();
+    broadcastSnapshot();
   };
   const logFilterReset = () => {
     dataRef.current.filter_interactions.filter_resets++;
+    broadcastSnapshot();
   };
   const logFilterError = () => {
     dataRef.current.summary_metrics.error_count++;
+    broadcastSnapshot();
   };
 
   // --- PRODUCT EXPLORATION ---
@@ -119,6 +137,7 @@ const useTask2Logger = () => {
     lastHoveredProduct.current = product_id;
     lastHoverTime.current = nowMS();
     hoveredProductsSet.current.add(product_id);
+    broadcastSnapshot();
   };
   const logProductHoverEnd = (product_id) => {
     const start = hoverStart.current[product_id];
@@ -127,6 +146,7 @@ const useTask2Logger = () => {
       dataRef.current.product_exploration.products_viewed.push({ product_id, hover_duration_ms: duration });
       hoverStart.current[product_id] = null;
     }
+    broadcastSnapshot();
   };
 
   // --- DECISION MAKING ---
@@ -135,12 +155,14 @@ const useTask2Logger = () => {
       dataRef.current.decision_making.decision_time_ms = new Date(dataRef.current.timestamps.end).getTime() - lastFilterSetTime.current;
     }
     dataRef.current.decision_making.comparison_count = hoveredProductsSet.current.size;
+    broadcastSnapshot();
   };
 
   // --- MOUSE ANALYTICS ---
   useEffect(() => {
     const mouseMoveHandler = (e) => {
       mousePath.current.push({ x: e.clientX, y: e.clientY, t: nowMS() });
+      broadcastSnapshot();
     };
     window.addEventListener('mousemove', mouseMoveHandler);
     return () => window.removeEventListener('mousemove', mouseMoveHandler);
@@ -170,6 +192,7 @@ const useTask2Logger = () => {
     const dy = click_pos.y - center_pos.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     dataRef.current.mouse_analytics.click_precision.push({ target, click_pos, center_pos, distance });
+    broadcastSnapshot();
   };
 
   // --- SAVE ---
@@ -179,6 +202,7 @@ const useTask2Logger = () => {
     dataRef.current.mouse_analytics.mouse_entropy = calculateMouseEntropy();
     dataRef.current.summary_metrics.success = !!success;
     localStorage.setItem('task_2_data', JSON.stringify({ task_2_data: dataRef.current }));
+    broadcastSnapshot();
   };
 
   return {

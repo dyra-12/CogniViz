@@ -7,6 +7,8 @@ import Filters from '../components/Filters';
 import RequirementsChecklist from '../components/RequirementsChecklist';
 import useLogger from '../hooks/useLogger';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
+import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
+import { describeLoadState, getTaskInsights } from '../utils/cognitiveLoadHints';
 
 const PageContainer = styled.div`
   padding: ${props => props.theme.spacing[6]} 0;
@@ -50,6 +52,8 @@ const ResultsInfo = styled.div`
   padding: ${props => props.theme.spacing[4]};
   background: ${props => props.theme.colors.gray100};
   border-radius: ${props => props.theme.borderRadius.lg};
+  gap: ${props => props.theme.spacing[3]};
+  flex-wrap: wrap;
 `;
 
 const ResultsCount = styled.span`
@@ -70,6 +74,77 @@ const NoProducts = styled.div`
   text-align: center;
   padding: ${props => props.theme.spacing[12]};
   color: ${props => props.theme.colors.gray600};
+`;
+
+const AdaptiveNotice = styled.div`
+  border-radius: ${props => props.theme.borderRadius.lg};
+  padding: ${props => props.theme.spacing[4]};
+  border: 1px solid ${props => props.theme.colors.gray200};
+  background: ${props => props.$load === 'High'
+    ? 'rgba(247,37,133,0.08)'
+    : props.$load === 'Medium'
+      ? 'rgba(247,127,0,0.08)'
+      : 'rgba(67,97,238,0.05)'};
+  margin-bottom: ${props => props.theme.spacing[5]};
+`;
+
+const NoticeHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: ${props => props.theme.colors.dark};
+`;
+
+const InsightChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${props => props.theme.spacing[2]};
+  margin-top: ${props => props.theme.spacing[3]};
+`;
+
+const InsightChip = styled.span`
+  font-size: ${props => props.theme.fontSizes.sm};
+  padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[3]};
+  border-radius: 999px;
+  background: ${props => props.theme.colors.white};
+  border: 1px solid ${props => props.theme.colors.gray200};
+`;
+
+const QuickActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${props => props.theme.spacing[2]};
+  margin-top: ${props => props.theme.spacing[3]};
+`;
+
+const QuickActionButton = styled.button`
+  border: none;
+  background: ${props => props.theme.colors.primary};
+  color: ${props => props.theme.colors.white};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  cursor: pointer;
+  font-size: ${props => props.theme.fontSizes.sm};
+  font-weight: 600;
+`;
+
+const FocusTag = styled.span`
+  background: ${props => props.theme.colors.warning}15;
+  color: ${props => props.theme.colors.warning};
+  border-radius: 999px;
+  padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[2]};
+  font-size: ${props => props.theme.fontSizes.sm};
+  font-weight: 600;
+`;
+
+const ShowAllButton = styled.button`
+  margin-top: ${props => props.theme.spacing[3]};
+  background: none;
+  border: none;
+  color: ${props => props.theme.colors.primary};
+  cursor: pointer;
+  font-weight: 600;
 `;
 
 const Container = styled.div`
@@ -109,6 +184,11 @@ const Task2 = () => {
   const { log } = useLogger();
   const { completeCurrentTask } = useTaskProgress();
   const logger = useTask2Logger();
+  const { loadClass, shap, hydrated } = useCognitiveLoad();
+  const loadState = hydrated ? loadClass : 'Calibrating';
+  const isHighLoad = hydrated && loadClass === 'High';
+  const insights = useMemo(() => getTaskInsights(shap, 'task2', 2), [shap]);
+  const { title: loadTitle, message: loadMessage } = describeLoadState(loadState);
   // Expose logger globally for ProductCard click precision
   if (typeof window !== 'undefined') {
     window.__task2Logger = logger;
@@ -129,6 +209,16 @@ const Task2 = () => {
   const [filteredProducts, setFilteredProducts] = useState(products);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState('browsing');
+  const [presetApplied, setPresetApplied] = useState(false);
+  const [showFullResults, setShowFullResults] = useState(true);
+
+  useEffect(() => {
+    if (isHighLoad) {
+      setShowFullResults(false);
+    } else {
+      setShowFullResults(true);
+    }
+  }, [isHighLoad]);
 
   // Log initial view
   useEffect(() => {
@@ -206,6 +296,27 @@ const Task2 = () => {
       previousValue: previousFilters[filterType]
     });
   };
+
+  const applyRecommendedPreset = () => {
+    const preset = {
+      minPrice: 800,
+      maxPrice: 1200,
+      brands: ['Dell', 'Lenovo'],
+      minRating: 4,
+      rams: ['16GB'],
+      inStockOnly: true,
+      sortBy: 'rating'
+    };
+    setFilters(preset);
+    setPresetApplied(true);
+    log('adaptive_filter_preset', { source: 'cognitive_load', loadState, preset });
+  };
+
+  useEffect(() => {
+    if (!isHighLoad) {
+      setPresetApplied(false);
+    }
+  }, [isHighLoad]);
 
   const handleClearFilters = () => {
     logger.logFilterReset();
@@ -308,6 +419,9 @@ const Task2 = () => {
     completeCurrentTask();
   };
 
+  const displayedProducts = showFullResults ? filteredProducts : filteredProducts.slice(0, 6);
+  const clampedResults = !showFullResults && filteredProducts.length > displayedProducts.length;
+
   // Product hover/click logging for exploration
   // Attach these to ProductCard via props if needed
 
@@ -341,6 +455,39 @@ const Task2 = () => {
   return (
     <PageContainer>
       <PageTitle>Find the Perfect Laptop</PageTitle>
+
+      <AdaptiveNotice $load={loadState}>
+        <NoticeHeader>
+          <span>{loadTitle}</span>
+          <span style={{ fontSize: '0.85rem', color: '#475569' }}>{loadState}</span>
+        </NoticeHeader>
+        <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
+        {insights.length > 0 && (
+          <InsightChips>
+            {insights.map(insight => (
+              <InsightChip key={insight.feature}>
+                {insight.label}
+              </InsightChip>
+            ))}
+          </InsightChips>
+        )}
+        {isHighLoad && (
+          <QuickActions>
+            <QuickActionButton type="button" onClick={applyRecommendedPreset}>
+              {presetApplied ? 'Preset Applied' : 'Apply Laptop Preset'}
+            </QuickActionButton>
+            <QuickActionButton
+              type="button"
+              onClick={() => {
+                setShowFullResults(true);
+                log('adaptive_show_all_products', { loadState });
+              }}
+            >
+              Show All Results
+            </QuickActionButton>
+          </QuickActions>
+        )}
+      </AdaptiveNotice>
       
       <ContentLayout>
         {/* Left Sidebar - Filters */}
@@ -358,8 +505,11 @@ const Task2 = () => {
         <div>
           <ResultsInfo>
             <ResultsCount>
-              Showing {filteredProducts.length} of {products.length} products
+              Showing {displayedProducts.length} of {filteredProducts.length} filtered products
             </ResultsCount>
+            {isHighLoad && (
+              <FocusTag>Focus Mode</FocusTag>
+            )}
             <SortSelect value={filters.sortBy} onChange={handleSortChange}>
               <option value="name">Sort by Name</option>
               <option value="price-low">Price: Low to High</option>
@@ -369,7 +519,7 @@ const Task2 = () => {
           </ResultsInfo>
 
           <ProductsGrid>
-            {filteredProducts.map(product => (
+            {displayedProducts.map(product => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -387,6 +537,18 @@ const Task2 = () => {
               <p>Try adjusting your filters to see more results.</p>
             </NoProducts>
           )}
+
+          {clampedResults && (
+            <ShowAllButton
+              type="button"
+              onClick={() => {
+                setShowFullResults(true);
+                log('adaptive_show_all_products', { loadState, mode: 'from_hint' });
+              }}
+            >
+              Show all {filteredProducts.length} products
+            </ShowAllButton>
+          )}
         </div>
 
         {/* Right Sidebar - Requirements Checklist */}
@@ -396,6 +558,7 @@ const Task2 = () => {
             selectedProduct={selectedProduct}
             checkoutStep={checkoutStep}
             onAction={handleChecklistAction}
+            highlight={isHighLoad}
           />
         </Sidebar>
       </ContentLayout>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import styled from 'styled-components';
 import Button from '../components/Button';
 import useLogger from '../hooks/useLogger';
@@ -6,15 +6,28 @@ import useTask1Logger from '../hooks/useTask1Logger';
 import { useTaskProgress } from '../contexts/TaskProgressContext'; // Add this import
 import { useAuth } from '../contexts/AuthContext';
 import { sendTask1Metrics } from '../utils/dataCollection';
+import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
+import { describeLoadState, getTaskInsights } from '../utils/cognitiveLoadHints';
 
 // Styled Components for the form
 const FormContainer = styled.div`
-  max-width: 600px;
+  max-width: 640px;
   margin: 0 auto;
   padding: ${props => props.theme.spacing[8]};
   background: ${props => props.theme.colors.white};
   border-radius: ${props => props.theme.borderRadius.xl};
-  box-shadow: ${props => props.theme.shadows.lg};
+  border: 2px solid
+    ${props => {
+      if (props.$load === 'High') return props.theme.colors.danger;
+      if (props.$load === 'Medium') return props.theme.colors.warning;
+      return 'transparent';
+    }};
+  box-shadow: ${props => props.$load === 'High'
+    ? '0 24px 50px rgba(247, 37, 133, 0.25)'
+    : props.$load === 'Medium'
+      ? '0 20px 45px rgba(247, 127, 0, 0.18)'
+      : props.theme.shadows.lg};
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 `;
 
 const FormTitle = styled.h1`
@@ -51,6 +64,12 @@ const Input = styled.input`
   &.error {
     border-color: ${props => props.theme.colors.danger};
   }
+
+  &.focus-field {
+    border-color: ${props => props.theme.colors.warning};
+    box-shadow: 0 0 0 3px ${props => props.theme.colors.warning}22;
+    background: ${props => props.theme.colors.warning}08;
+  }
 `;
 
 const Select = styled.select`
@@ -77,6 +96,83 @@ const Select = styled.select`
   &::-webkit-search-results-decoration {
     display: none;
   }
+`;
+
+const AdaptiveBanner = styled.div`
+  background: ${props => {
+    switch (props.$load) {
+      case 'High':
+        return 'rgba(247, 37, 133, 0.08)';
+      case 'Medium':
+        return 'rgba(247, 127, 0, 0.08)';
+      case 'Low':
+        return 'rgba(67, 97, 238, 0.08)';
+      default:
+        return props.theme.colors.gray100;
+    }
+  }};
+  border: 1px solid ${props => {
+    switch (props.$load) {
+      case 'High':
+        return props.theme.colors.danger;
+      case 'Medium':
+        return props.theme.colors.warning;
+      case 'Low':
+        return props.theme.colors.primary;
+      default:
+        return props.theme.colors.gray200;
+    }
+  }};
+  border-radius: ${props => props.theme.borderRadius.lg};
+  padding: ${props => props.theme.spacing[4]};
+  margin-bottom: ${props => props.theme.spacing[6]};
+`;
+
+const BannerTitle = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: ${props => props.theme.colors.dark};
+`;
+
+const BannerList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: ${props => props.theme.spacing[3]} 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: ${props => props.theme.spacing[2]};
+`;
+
+const BannerItem = styled.li`
+  font-size: ${props => props.theme.fontSizes.sm};
+  color: ${props => props.theme.colors.gray700};
+  display: flex;
+  flex-direction: column;
+
+  span:first-child {
+    font-weight: 600;
+    color: ${props => props.theme.colors.dark};
+  }
+`;
+
+const OptionalToggle = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing[2]};
+  border: none;
+  background: none;
+  color: ${props => props.theme.colors.primary};
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: ${props => props.theme.spacing[2]};
+`;
+
+const OptionalSection = styled.div`
+  border-top: 1px dashed ${props => props.theme.colors.gray200};
+  margin-top: ${props => props.theme.spacing[4]};
+  padding-top: ${props => props.theme.spacing[4]};
 `;
 
 const ErrorText = styled.span`
@@ -113,6 +209,11 @@ const Task1 = () => {
   const logger = useTask1Logger();
   const formRef = useRef();
   const { participantId } = useAuth();
+  const { loadClass, shap, hydrated } = useCognitiveLoad();
+  const loadState = hydrated ? loadClass : 'Calibrating';
+  const { title: loadTitle, message: loadMessage } = describeLoadState(loadState);
+  const isHighLoad = hydrated && loadClass === 'High';
+  const insights = useMemo(() => getTaskInsights(shap, 'task1', 2), [shap]);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -127,6 +228,13 @@ const Task1 = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isTouched, setIsTouched] = useState({});
+  const [optionalCollapsed, setOptionalCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (isHighLoad) {
+      setOptionalCollapsed(true);
+    }
+  }, [isHighLoad]);
 
   // Log initial view
   // Mark start when form becomes visible (instructions disappear)
@@ -146,6 +254,14 @@ const Task1 = () => {
     if (isTouched[name]) {
       log('form_field_interaction', { fieldName: name, value, action: 'change' });
     }
+  };
+
+  const essentialFields = ['fullName', 'addressLine1', 'city', 'zipCode'];
+  const getFieldClasses = (name) => {
+    const classes = [];
+    if (errors[name]) classes.push('error');
+    if (isHighLoad && essentialFields.includes(name)) classes.push('focus-field');
+    return classes.join(' ');
   };
 
   const handleBlur = (e) => {
@@ -272,7 +388,7 @@ const Task1 = () => {
 
   if (isSubmitted) {
     return (
-      <FormContainer>
+      <FormContainer $load={loadState}>
         <SuccessMessage>
           <h3>✅ Success!</h3>
           <p>Your shipping information has been submitted successfully.</p>
@@ -294,7 +410,29 @@ const Task1 = () => {
   }
 
   return (
-    <FormContainer>
+    <FormContainer $load={loadState}>
+      <AdaptiveBanner $load={loadState}>
+        <BannerTitle>
+          <span>{loadTitle}</span>
+          <small style={{ color: '#475569' }}>{loadState}</small>
+        </BannerTitle>
+        <p style={{ marginTop: '0.25rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
+        {insights.length > 0 && (
+          <BannerList>
+            {insights.map((insight) => (
+              <BannerItem key={insight.feature}>
+                <span>{insight.label}</span>
+                <span>{insight.advice}</span>
+              </BannerItem>
+            ))}
+          </BannerList>
+        )}
+        {isHighLoad && (
+          <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#b45309' }}>
+            Optional address fields are collapsed to keep focus on required inputs.
+          </p>
+        )}
+      </AdaptiveBanner>
       <FormTitle>Shipping Information</FormTitle>
       
       <form onSubmit={handleSubmit}>
@@ -309,7 +447,7 @@ const Task1 = () => {
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
-            className={errors.fullName ? 'error' : ''}
+            className={getFieldClasses('fullName')}
             placeholder="John Doe"
           />
           {errors.fullName && <ErrorText>{errors.fullName}</ErrorText>}
@@ -326,26 +464,33 @@ const Task1 = () => {
             onBlur={handleBlur}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
-            className={errors.addressLine1 ? 'error' : ''}
+            className={getFieldClasses('addressLine1')}
             placeholder="123 Main St"
           />
           {errors.addressLine1 && <ErrorText>{errors.addressLine1}</ErrorText>}
         </FormGroup>
 
-        <FormGroup>
-          <Label htmlFor="addressLine2">Address Line 2 (Optional)</Label>
-          <Input
-            type="text"
-            id="addressLine2"
-            name="addressLine2"
-            value={formData.addressLine2}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            onFocus={handleFocus}
-            onKeyDown={handleKeyDown}
-            placeholder="Apt 456"
-          />
-        </FormGroup>
+        <OptionalSection>
+          <OptionalToggle type="button" onClick={() => setOptionalCollapsed(prev => !prev)}>
+            {optionalCollapsed ? 'Show optional fields' : 'Hide optional fields'}
+          </OptionalToggle>
+          {!optionalCollapsed && (
+            <FormGroup>
+              <Label htmlFor="addressLine2">Address Line 2 (Optional)</Label>
+              <Input
+                type="text"
+                id="addressLine2"
+                name="addressLine2"
+                value={formData.addressLine2}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                onFocus={handleFocus}
+                onKeyDown={handleKeyDown}
+                placeholder="Apt 456"
+              />
+            </FormGroup>
+          )}
+        </OptionalSection>
 
         <TwoColumnGrid>
           <FormGroup>
@@ -359,7 +504,7 @@ const Task1 = () => {
               onBlur={handleBlur}
               onFocus={handleFocus}
               onKeyDown={handleKeyDown}
-              className={errors.city ? 'error' : ''}
+              className={getFieldClasses('city')}
               placeholder="New York"
             />
             {errors.city && <ErrorText>{errors.city}</ErrorText>}
@@ -434,7 +579,7 @@ const Task1 = () => {
               onBlur={handleBlur}
               onFocus={handleFocus}
               onKeyDown={handleKeyDown}
-              className={errors.zipCode ? 'error' : ''}
+              className={getFieldClasses('zipCode')}
               placeholder="12345"
             />
             {errors.zipCode && <ErrorText>{errors.zipCode}</ErrorText>}

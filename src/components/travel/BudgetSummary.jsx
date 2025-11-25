@@ -4,10 +4,12 @@ const BudgetContainer = styled.div`
   background: ${props => props.theme.colors.white};
   padding: ${props => props.theme.spacing[5]};
   border-radius: ${props => props.theme.borderRadius.xl};
-  box-shadow: ${props => props.theme.shadows.md};
+  box-shadow: ${props => props.$highlighted ? '0 18px 38px rgba(72, 149, 239, 0.25)' : props.theme.shadows.md};
+  border: 2px solid ${props => props.$highlighted ? props.theme.colors.info : 'transparent'};
   margin-bottom: ${props => props.theme.spacing[6]};
   position: sticky;
   top: ${props => props.theme.spacing[4]};
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 `;
 
 const BudgetItem = styled.div`
@@ -30,9 +32,9 @@ const Remaining = styled(BudgetItem)`
   font-size: ${props => props.theme.fontSizes.lg};
 `;
 
-const BudgetSummary = ({ flight, hotel, transport, total, remaining }) => {
+const BudgetSummary = ({ flight, hotel, transport, total, remaining, highlight = false }) => {
   return (
-    <BudgetContainer>
+    <BudgetContainer $highlighted={highlight}>
       <h3>Budget Summary</h3>
       
       <BudgetItem>
@@ -63,6 +65,16 @@ const BudgetSummary = ({ flight, hotel, transport, total, remaining }) => {
       <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
         Total Budget: $1,380
       </div>
+      {highlight && (
+        <div style={{
+          marginTop: '0.5rem',
+          fontSize: '0.85rem',
+          color: '#4895ef',
+          fontWeight: 600
+        }}>
+          Keep an eye here—going over budget is driving load up.
+        </div>
+      )}
     </BudgetContainer>
   );
 };

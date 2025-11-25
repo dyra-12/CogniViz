@@ -5,18 +5,19 @@ import { TaskProgressProvider } from './contexts/TaskProgressContext';
 import { theme } from './styles/theme';
 import GlobalStyles from './styles/GlobalStyles';
 import AppLayout from './components/AppLayout';
-import { useMetricsCollector } from './telemetry/useMetricsCollector';
+import { CognitiveLoadProvider } from './contexts/CognitiveLoadContext';
 
 function App() {
-  useMetricsCollector();
   return (
     <ThemeProvider theme={theme}>
       <GlobalStyles />
       <AuthProvider>
         <TaskProgressProvider>
-          <Router>
-            <AppLayout />
-          </Router>
+          <CognitiveLoadProvider>
+            <Router>
+              <AppLayout />
+            </Router>
+          </CognitiveLoadProvider>
         </TaskProgressProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import useLogger from '../hooks/useLogger';
@@ -13,6 +13,8 @@ import MeetingScheduler from '../components/travel/MeetingScheduler';
 import BudgetSummary from '../components/travel/BudgetSummary';
 import TransportSelection from '../components/travel/TransportSelection';
 import Button from '../components/Button';
+import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
+import { describeLoadState, getTaskInsights } from '../utils/cognitiveLoadHints';
 
 const PageContainer = styled.div`
   padding: ${props => props.theme.spacing[6]} 0;
@@ -67,10 +69,80 @@ const ErrorMessage = styled.div`
   margin-bottom: ${props => props.theme.spacing[3]};
 `;
 
+const AdaptiveNotice = styled.div`
+  border-radius: ${props => props.theme.borderRadius.lg};
+  padding: ${props => props.theme.spacing[4]};
+  border: 1px solid ${props => props.theme.colors.gray200};
+  background: ${props => props.$load === 'High'
+    ? 'rgba(72,149,239,0.12)'
+    : props.$load === 'Medium'
+      ? 'rgba(247,127,0,0.08)'
+      : 'rgba(76,201,240,0.08)'};
+  margin-bottom: ${props => props.theme.spacing[5]};
+`;
+
+const NoticeHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: ${props => props.theme.colors.dark};
+`;
+
+const InsightChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${props => props.theme.spacing[2]};
+  margin-top: ${props => props.theme.spacing[3]};
+`;
+
+const InsightChip = styled.span`
+  font-size: ${props => props.theme.fontSizes.sm};
+  padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[2]};
+  border-radius: 999px;
+  background: ${props => props.theme.colors.white};
+  border: 1px solid ${props => props.theme.colors.gray300};
+`;
+
+const GuidedList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: ${props => props.theme.spacing[3]} 0 0;
+  display: grid;
+  gap: ${props => props.theme.spacing[2]};
+`;
+
+const GuidedItem = styled.li`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: ${props => props.completed ? `${props.theme.colors.success}15` : props.theme.colors.white};
+  border: 1px solid ${props => props.completed ? props.theme.colors.success : props.theme.colors.gray200};
+  border-radius: ${props => props.theme.borderRadius.md};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
+  font-size: ${props => props.theme.fontSizes.sm};
+`;
+
+const QuickActionButton = styled.button`
+  border: none;
+  background: ${props => props.theme.colors.primary};
+  color: ${props => props.theme.colors.white};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: ${props => props.theme.spacing[3]};
+`;
+
 const Task3 = () => {
   const { completeCurrentTask } = useTaskProgress();
   const { log } = useLogger();
   const task3Logger = useTask3Logger();
+  const { loadClass, shap, hydrated } = useCognitiveLoad();
+  const loadState = hydrated ? loadClass : 'Calibrating';
+  const isHighLoad = hydrated && loadClass === 'High';
+  const insights = useMemo(() => getTaskInsights(shap, 'task3', 3), [shap]);
+  const { title: loadTitle, message: loadMessage } = describeLoadState(loadState);
   
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
@@ -457,6 +529,39 @@ const Task3 = () => {
     completeCurrentTask();
   };
 
+  const guidedSteps = useMemo(() => ([
+    {
+      id: 'flights',
+      label: 'Select both flights (arrive < 15:00, depart > 12:00)',
+      completed: !!selectedOutboundFlight && !!selectedReturnFlight
+    },
+    {
+      id: 'hotel',
+      label: 'Hotel within 5km and ≥3★',
+      completed: !!selectedHotel && selectedHotel.distance <= 5 && selectedHotel.stars >= 3
+    },
+    {
+      id: 'transport',
+      label: 'Ground transport chosen',
+      completed: !!selectedTransport
+    },
+    {
+      id: 'meetings',
+      label: 'All meetings scheduled',
+      completed: meetings.every(m => m.scheduled)
+    },
+    {
+      id: 'budget',
+      label: 'Stay within $1,380 budget',
+      completed: remainingBudget >= 0
+    }
+  ]), [selectedOutboundFlight, selectedReturnFlight, selectedHotel, selectedTransport, meetings, remainingBudget]);
+
+  const runGuidedValidation = () => {
+    const success = validateConstraints();
+    log('adaptive_guided_validation', { success, loadState });
+  };
+
   if (isCompleted) {
     return (
       <PageContainer>
@@ -478,6 +583,32 @@ const Task3 = () => {
   return (
     <PageContainer>
       <PageTitle>Plan Your Business Trip to Berlin</PageTitle>
+
+      <AdaptiveNotice $load={loadState}>
+        <NoticeHeader>
+          <span>{loadTitle}</span>
+          <span style={{ fontSize: '0.85rem', color: '#475569' }}>{loadState}</span>
+        </NoticeHeader>
+        <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
+        {insights.length > 0 && (
+          <InsightChips>
+            {insights.map(insight => (
+              <InsightChip key={insight.feature}>{insight.label}</InsightChip>
+            ))}
+          </InsightChips>
+        )}
+        <GuidedList>
+          {guidedSteps.map(step => (
+            <GuidedItem key={step.id} completed={step.completed}>
+              <span>{step.label}</span>
+              <span>{step.completed ? '✓' : '•'}</span>
+            </GuidedItem>
+          ))}
+        </GuidedList>
+        <QuickActionButton type="button" onClick={runGuidedValidation}>
+          Run Guided Validation
+        </QuickActionButton>
+      </AdaptiveNotice>
 
       <Layout>
         <MainContent>
@@ -538,6 +669,7 @@ const Task3 = () => {
             transport={selectedTransport}
             total={totalCost}
             remaining={remainingBudget}
+            highlight={isHighLoad || remainingBudget < 0}
           />
           
           <div>

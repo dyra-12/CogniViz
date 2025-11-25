@@ -8,6 +8,7 @@ import Task2 from '../pages/Task2';
 import Task3 from '../pages/Task3';
 import CompletionPage from '../pages/CompletionPage';
 import ConsentLanding from '../pages/ConsentLanding';
+import CognitiveLoadPanel from './CognitiveLoadPanel';
 
 const AppLayout = () => {
   const { 
@@ -60,6 +61,7 @@ const AppLayout = () => {
         taskId={questionnaireData.taskId}
         onSubmit={handleQuestionnaireSubmit}
       />
+      <CognitiveLoadPanel />
     </div>
   );
 };

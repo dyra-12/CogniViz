@@ -5,8 +5,10 @@ const ChecklistContainer = styled.div`
   background: ${props => props.theme.colors.white};
   padding: ${props => props.theme.spacing[5]};
   border-radius: ${props => props.theme.borderRadius.xl};
-  box-shadow: ${props => props.theme.shadows.md};
+  box-shadow: ${props => props.$highlighted ? '0 18px 38px rgba(251, 191, 36, 0.25)' : props.theme.shadows.md};
+  border: 2px solid ${props => props.$highlighted ? props.theme.colors.warning : 'transparent'};
   margin-bottom: ${props => props.theme.spacing[6]};
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 `;
 
 const ChecklistTitle = styled.h3`
@@ -86,7 +88,15 @@ const ActionButton = styled.button`
   }
 `;
 
-const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onAction }) => {
+const FocusHint = styled.div`
+  margin-top: ${props => props.theme.spacing[3]};
+  font-size: ${props => props.theme.fontSizes.sm};
+  color: ${props => props.theme.colors.warning};
+  font-weight: 600;
+  text-align: center;
+`;
+
+const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onAction, highlight = false }) => {
   const [requirements, setRequirements] = useState([
     { id: 1, text: "Price between $800 and $1200", completed: false },
     { id: 2, text: "Brand: Dell OR Lenovo", completed: false },
@@ -150,7 +160,7 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
   };
 
   return (
-    <ChecklistContainer>
+    <ChecklistContainer $highlighted={highlight}>
       <ChecklistTitle>
         📋 Task Requirements
         <span style={{ 
@@ -162,6 +172,9 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
           {completedCount}/{totalCount} completed
         </span>
       </ChecklistTitle>
+      {highlight && (
+        <FocusHint>Focus here first to unblock checkout.</FocusHint>
+      )}
       
       {requirements.map(requirement => (
         <RequirementItem key={requirement.id} completed={requirement.completed}>

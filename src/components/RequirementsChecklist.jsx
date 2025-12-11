@@ -26,14 +26,14 @@ const RequirementItem = styled.div`
   margin-bottom: ${props => props.theme.spacing[3]};
   padding: ${props => props.theme.spacing[2]};
   border-radius: ${props => props.theme.borderRadius.md};
-  background: ${props => (props.completed ? `${props.theme.colors.success}15` : props.theme.colors.gray100)};
-  border-left: 4px solid ${props => props.completed ? props.theme.colors.success : props.theme.colors.gray300};
+  background: ${props => (props.$completed ? `${props.theme.colors.success}15` : props.theme.colors.gray100)};
+  border-left: 4px solid ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray300};
 `;
 
 const RequirementText = styled.span`
   flex: 1;
-  color: ${props => props.completed ? props.theme.colors.success : props.theme.colors.gray700};
-  font-weight: ${props => props.completed ? '600' : 'normal'};
+  color: ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray700};
+  font-weight: ${props => props.$completed ? '600' : 'normal'};
 `;
 
 const Icon = styled.span`
@@ -43,7 +43,7 @@ const Icon = styled.span`
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: ${props => props.completed ? props.theme.colors.success : props.theme.colors.gray300};
+  background: ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray300};
   color: ${props => props.theme.colors.white};
   font-size: ${props => props.theme.fontSizes.sm};
 `;
@@ -177,11 +177,11 @@ const RequirementsChecklist = ({ filters, selectedProduct, checkoutStep, onActio
       )}
       
       {requirements.map(requirement => (
-        <RequirementItem key={requirement.id} completed={requirement.completed}>
-          <Icon completed={requirement.completed}>
+        <RequirementItem key={requirement.id} $completed={requirement.completed}>
+          <Icon $completed={requirement.completed}>
             {requirement.completed ? '✓' : '!'}
           </Icon>
-          <RequirementText completed={requirement.completed}>
+          <RequirementText $completed={requirement.completed}>
             {requirement.text}
           </RequirementText>
         </RequirementItem>

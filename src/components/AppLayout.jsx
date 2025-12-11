@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import Header from './Header';
+import ModeBadge from './ModeBadge';
 import InstructionModal from './InstructionModal';
 import QuestionnaireModal from './QuestionnaireModal';
 import Task1 from '../pages/Task1';
@@ -22,18 +23,11 @@ const AppLayout = () => {
 
   const location = useLocation();
 
-  const getCurrentComponent = () => {
-    switch (currentTask) {
-      case 1: return <Task1 />;
-      case 2: return <Task2 />;
-      case 3: return <Task3 />;
-      case 4: return <CompletionPage />;
-      default: return <CompletionPage />;
-    }
-  };
+  // The routing table below renders task components directly.
 
   return (
     <div className="app">
+      <ModeBadge />
       <Header />
       <main className="main-content">
         <Routes>

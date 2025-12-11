@@ -152,16 +152,16 @@ const StarButton = styled.button`
   display: flex;
   align-items: center;
   gap: ${props => props.theme.spacing[2]};
-  background: ${props => props.active ? props.theme.colors.primary : 'transparent'};
-  color: ${props => props.active ? props.theme.colors.white : props.theme.colors.gray700};
-  border: 1px solid ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray300};
+  background: ${props => props.$active ? props.theme.colors.primary : 'transparent'};
+  color: ${props => props.$active ? props.theme.colors.white : props.theme.colors.gray700};
+  border: 1px solid ${props => props.$active ? props.theme.colors.primary : props.theme.colors.gray300};
   padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
   border-radius: ${props => props.theme.borderRadius.md};
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray100};
+    background: ${props => props.$active ? props.theme.colors.primary : props.theme.colors.gray100};
   }
 `;
 
@@ -281,7 +281,7 @@ const Filters = ({
           {[4, 3, 2, 1, 0].map(rating => (
             <StarButton
               key={rating}
-              active={filters.minRating === rating}
+              $active={filters.minRating === rating}
               onClick={e => {
                 if (typeof window !== 'undefined' && window.__task2Logger) {
                   const rect = e.target.getBoundingClientRect();

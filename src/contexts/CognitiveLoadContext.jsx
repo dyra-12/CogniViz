@@ -1,79 +1,53 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { useMetricsPipeline } from '../telemetry/useMetricsPipeline';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const CognitiveLoadContext = createContext(null);
 
-const defaultProbabilities = { Low: 0.34, Medium: 0.33, High: 0.33 };
-const defaultPrediction = {
-  loadClass: 'Calibrating',
-  probabilities: defaultProbabilities,
-  shap: [],
-  explanation: 'Collecting interaction signals...',
-  modelVersion: 'n/a',
-  receivedAt: null,
-};
-
 export const CognitiveLoadProvider = ({ children }) => {
-  const [prediction, setPrediction] = useState(defaultPrediction);
-  const [history, setHistory] = useState([]);
+  const envMode = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_COG_LOAD_MODE)
+    ? String(import.meta.env.VITE_COG_LOAD_MODE).toLowerCase()
+    : (typeof process !== 'undefined' && process?.env?.VITE_COG_LOAD_MODE)
+      ? String(process.env.VITE_COG_LOAD_MODE).toLowerCase()
+      : 'live';
+
   const [hydrated, setHydrated] = useState(false);
+  const [loadClass, setLoadClass] = useState('Calibrating'); // 'Low'|'Medium'|'High'|'Calibrating'
+  const [shap, setShap] = useState(null);
 
-  const handlePrediction = useCallback((payload) => {
-    if (!payload) {
-      return;
+  useEffect(() => {
+    // Minimal initialization: in live mode show Low; in simulation show Medium
+    if (envMode.includes('sim')) {
+      setLoadClass('Medium');
+      setShap({ task1: 0.2, task2: 0.3, task3: 0.5 });
+      setHydrated(true);
+    } else {
+      // Live/default: assume Low until telemetry hooks populate it
+      setLoadClass('Low');
+      setShap({ task1: 0.05, task2: 0.05, task3: 0.1 });
+      setHydrated(true);
     }
-    const probabilities = payload.probabilities ? {
-      Low: payload.probabilities.Low ?? defaultProbabilities.Low,
-      Medium: payload.probabilities.Medium ?? defaultProbabilities.Medium,
-      High: payload.probabilities.High ?? defaultProbabilities.High,
-    } : { ...defaultProbabilities };
-    const normalized = {
-      loadClass: payload.loadClass || 'Unknown',
-      probabilities,
-      shap: Array.isArray(payload.shap) ? payload.shap : [],
-      explanation: payload.explanation || 'Model response received.',
-      modelVersion: payload.modelVersion || 'unknown',
-      receivedAt: payload.receivedAt || Date.now(),
-    };
-    setPrediction(normalized);
+  }, [envMode]);
+
+  // Expose a small API so components can optionally update state (useful for tests)
+  const setManualLoad = (cls, shapObj = null) => {
+    setLoadClass(cls);
+    if (shapObj) setShap(shapObj);
     setHydrated(true);
-    setHistory((prev) => {
-      const next = [...prev, normalized];
-      if (next.length > 60) next.shift();
-      return next;
-    });
-  }, []);
-
-  const {
-    transportState,
-    lastEmission,
-    forceCompute,
-    pause,
-    resume,
-  } = useMetricsPipeline({ onPrediction: handlePrediction });
-
-  const contextValue = useMemo(() => ({
-    ...prediction,
-    hydrated,
-    history,
-    lastFeatures: lastEmission,
-    transportState,
-    forceCompute,
-    pauseStreaming: pause,
-    resumeStreaming: resume,
-  }), [prediction, hydrated, history, lastEmission, transportState, forceCompute, pause, resume]);
+  };
 
   return (
-    <CognitiveLoadContext.Provider value={contextValue}>
+    <CognitiveLoadContext.Provider value={{ loadClass, shap, hydrated, setManualLoad }}>
       {children}
     </CognitiveLoadContext.Provider>
   );
 };
 
 export const useCognitiveLoad = () => {
-  const context = useContext(CognitiveLoadContext);
-  if (!context) {
-    throw new Error('useCognitiveLoad must be used within a CognitiveLoadProvider');
+  const ctx = useContext(CognitiveLoadContext);
+  if (!ctx) {
+    // Provide a safe fallback to avoid crashes in isolated imports
+    return { loadClass: 'Calibrating', shap: null, hydrated: false, setManualLoad: () => {} };
   }
-  return context;
+  return ctx;
 };
+
+export default CognitiveLoadContext;

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "v1",
+  "features": [
+    { "key": "task1_total_duration_ms", "index": 0 },
+    { "key": "task1_field_interaction_count", "index": 1 },
+    { "key": "task1_error_count", "index": 2 },
+    { "key": "task1_help_requests", "index": 3 },
+    { "key": "task1_zip_corrections", "index": 4 },
+    { "key": "task2_total_duration_ms", "index": 5 },
+    { "key": "task2_error_count", "index": 6 },
+    { "key": "task2_filter_resets", "index": 7 },
+    { "key": "task2_mouse_entropy", "index": 8 },
+    { "key": "task2_decision_time_ms", "index": 9 },
+    { "key": "task3_total_actions", "index": 10 },
+    { "key": "task3_budget_overruns", "index": 11 },
+    { "key": "task3_cost_adjustments", "index": 12 },
+    { "key": "task3_idle_periods", "index": 13 },
+    { "key": "task3_mouse_entropy_hotels", "index": 14 },
+    { "key": "task3_mouse_entropy_meetings", "index": 15 }
+  ]
+}

@@ -1,13 +1,14 @@
+import { debugTelemetryWarn, debugTelemetry } from './debugLogger';
 const listeners = new Set();
 const latestByTask = {};
 const defaultClone = (data) => {
   if (!data) return null;
   if (typeof structuredClone === 'function') {
-    try { return structuredClone(data); } catch (_) { /* fallback below */ }
+    try { return structuredClone(data); } catch { /* fallback below */ }
   }
   try {
     return JSON.parse(JSON.stringify(data));
-  } catch (_) {
+  } catch {
     return null;
   }
 };
@@ -19,7 +20,7 @@ function notify(taskId) {
     try {
       listener({ taskId, data: snapshot, timestamp: Date.now() });
     } catch (err) {
-      console.error('[TaskMetricsBus] listener error', err);
+      debugTelemetryWarn('bus.listener-error', err);
     }
   });
 }
@@ -27,6 +28,7 @@ function notify(taskId) {
 export function publishTaskMetrics(taskId, data) {
   if (!taskId || !data) return;
   latestByTask[taskId] = defaultClone(data);
+  debugTelemetry('bus.publish', { taskId, keys: Object.keys(data || {}) });
   notify(taskId);
 }
 
@@ -39,7 +41,7 @@ export function subscribeToTaskMetrics(listener) {
       try {
         listener({ taskId, data: snapshot, timestamp: Date.now() });
       } catch (err) {
-        console.error('[TaskMetricsBus] listener init error', err);
+        debugTelemetryWarn('bus.listener-init-error', err);
       }
     }
   });

@@ -116,8 +116,8 @@ const GuidedItem = styled.li`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: ${props => props.completed ? `${props.theme.colors.success}15` : props.theme.colors.white};
-  border: 1px solid ${props => props.completed ? props.theme.colors.success : props.theme.colors.gray200};
+  background: ${props => props.$completed ? `${props.theme.colors.success}15` : props.theme.colors.white};
+  border: 1px solid ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray200};
   border-radius: ${props => props.theme.borderRadius.md};
   padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
   font-size: ${props => props.theme.fontSizes.sm};
@@ -599,7 +599,7 @@ const Task3 = () => {
         )}
         <GuidedList>
           {guidedSteps.map(step => (
-            <GuidedItem key={step.id} completed={step.completed}>
+            <GuidedItem key={step.id} $completed={step.completed}>
               <span>{step.label}</span>
               <span>{step.completed ? '✓' : '•'}</span>
             </GuidedItem>

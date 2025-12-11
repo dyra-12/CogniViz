@@ -25,7 +25,7 @@ export async function sendTask1Metrics({ participantId: pidFromArg } = {}) {
 		let parsed;
 		try {
 			parsed = JSON.parse(raw);
-		} catch (e) {
+		} catch {
 			return { ok: false, error: new Error('Failed to parse task_1_data JSON') };
 		}
 
@@ -51,7 +51,7 @@ export async function sendTask1Metrics({ participantId: pidFromArg } = {}) {
 			try {
 				localStorage.setItem('task1_uploaded', 'true');
 				localStorage.setItem('task1_docId', docRef.id);
-			} catch (_) { /* ignore */ }
+			} catch { /* ignore */ }
 			return { ok: true, id: docRef.id };
 	} catch (error) {
 			// Normalize common permission errors for clearer UI messaging
@@ -94,7 +94,7 @@ export function buildAggregatedStudyPayload() {
 						best = { key: k, data: parsed };
 					}
 				}
-			} catch (e) { /* ignore parse errors */ }
+			} catch { /* ignore parse errors */ }
 		}
 		return best ? JSON.stringify(best.data) : null;
 	})();
@@ -141,7 +141,7 @@ export async function sendAggregatedStudyData() {
 	try {
 		localStorage.setItem('submission_sent', 'true');
 		localStorage.setItem('submission_docId', docRef.id);
-	} catch (_) { /* ignore */ }
+	} catch { /* ignore */ }
 	return { ok: true, id: docRef.id };
 }
 

@@ -1,10 +1,10 @@
 /* eslint-disable no-restricted-globals */
-import { computeEngineeredFeatures, validateFeatureVector, FEATURE_SCHEMA_VERSION } from '../utils/featureSchema';
+import { computeEngineeredFeatures, validateFeatureVector } from '../utils/featureSchema';
 
 let latest = { task1: null, task2: null, task3: null };
 let intervalMs = 2000;
 let timerId = null;
-const schemaVersion = FEATURE_SCHEMA_VERSION;
+const schemaVersion = 1;
 
 function computeAndPost(source = 'timer') {
   try {

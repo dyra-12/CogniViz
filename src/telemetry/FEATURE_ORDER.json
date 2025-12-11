@@ -1,101 +1,18 @@
-{
-  "schemaVersion": "v1",
-  "features": [
-    {
-      "key": "task1_total_duration_ms",
-      "index": 0,
-      "description": "Total completion time for Task 1 (ms)",
-      "source": "task1.summary_metrics.total_time_ms"
-    },
-    {
-      "key": "task1_field_interaction_count",
-      "index": 1,
-      "description": "Number of distinct form fields interacted with",
-      "source": "task1.field_interactions.length"
-    },
-    {
-      "key": "task1_error_count",
-      "index": 2,
-      "description": "Form validation events logged during Task 1",
-      "source": "task1.summary_metrics.error_count"
-    },
-    {
-      "key": "task1_help_requests",
-      "index": 3,
-      "description": "Help modal activations during Task 1",
-      "source": "task1.summary_metrics.help_requests"
-    },
-    {
-      "key": "task1_zip_corrections",
-      "index": 4,
-      "description": "Zip/postal code correction count",
-      "source": "task1.task_specific_metrics.zip_code_corrections"
-    },
-    {
-      "key": "task2_total_duration_ms",
-      "index": 5,
-      "description": "Total running time for Task 2 (ms)",
-      "source": "task2.summary_metrics.total_time_ms"
-    },
-    {
-      "key": "task2_error_count",
-      "index": 6,
-      "description": "Errors encountered during filter/product interactions",
-      "source": "task2.summary_metrics.error_count"
-    },
-    {
-      "key": "task2_filter_resets",
-      "index": 7,
-      "description": "Number of times filters were reset",
-      "source": "task2.filter_interactions.filter_resets"
-    },
-    {
-      "key": "task2_mouse_entropy",
-      "index": 8,
-      "description": "Aggregate mouse entropy recorded for Task 2",
-      "source": "task2.mouse_analytics.mouse_entropy"
-    },
-    {
-      "key": "task2_decision_time_ms",
-      "index": 9,
-      "description": "Duration between final filter change and decision",
-      "source": "task2.decision_making.decision_time_ms"
-    },
-    {
-      "key": "task3_total_actions",
-      "index": 10,
-      "description": "Total discrete actions performed in Task 3",
-      "source": "task3.total_actions"
-    },
-    {
-      "key": "task3_budget_overruns",
-      "index": 11,
-      "description": "Budget overrun events triggered during Task 3",
-      "source": "task3.budget.budget_overrun_events"
-    },
-    {
-      "key": "task3_cost_adjustments",
-      "index": 12,
-      "description": "Number of corrective adjustments after overruns",
-      "source": "task3.budget.cost_adjustment_actions"
-    },
-    {
-      "key": "task3_idle_periods",
-      "index": 13,
-      "description": "Count of detected idle spans in Task 3",
-      "source": "task3.idle_periods.length"
-    },
-    {
-      "key": "task3_mouse_entropy_hotels",
-      "index": 14,
-      "description": "Mouse entropy captured while hovering hotels",
-      "source": "task3.hotels.mouse_entropy"
-    },
-    {
-      "key": "task3_mouse_entropy_meetings",
-      "index": 15,
-      "description": "Mouse entropy captured while arranging meetings",
-      "source": "task3.meetings.mouse_entropy"
-    }
-  ]
-}
+[
+  "constraint_violation_rate",
+  "scheduling_difficulty",
+  "budget_management_stress",
+  "idle_time_ratio",
+  "multitasking_load",
+  "drag_attempts",
+  "recovery_efficiency",
+  "mouse_entropy_avg",
+  "action_density",
+  "decision_latency_avg",
+  "click_rate",
+  "edit_rate",
+  "help_request_rate",
+  "window_switch_rate",
+  "error_rate",
+  "focus_time_avg"
+]

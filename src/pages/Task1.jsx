@@ -7,7 +7,8 @@ import { useTaskProgress } from '../contexts/TaskProgressContext'; // Add this i
 import { useAuth } from '../contexts/AuthContext';
 import { sendTask1Metrics } from '../utils/dataCollection';
 import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
-import { describeLoadState, getTaskInsights } from '../utils/cognitiveLoadHints';
+import { boostSimulationActivity } from '../telemetry/wsClient';
+
 
 // Styled Components for the form
 const FormContainer = styled.div`
@@ -211,9 +212,10 @@ const Task1 = () => {
   const { participantId } = useAuth();
   const { loadClass, shap, hydrated } = useCognitiveLoad();
   const loadState = hydrated ? loadClass : 'Calibrating';
-  const { title: loadTitle, message: loadMessage } = describeLoadState(loadState);
+    const loadTitle = '';
+    const loadMessage = '';
   const isHighLoad = hydrated && loadClass === 'High';
-  const insights = useMemo(() => getTaskInsights(shap, 'task1', 2), [shap]);
+    const insights = [];
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -254,6 +256,7 @@ const Task1 = () => {
     if (isTouched[name]) {
       log('form_field_interaction', { fieldName: name, value, action: 'change' });
     }
+    boostSimulationActivity(0.25);
   };
 
   const essentialFields = ['fullName', 'addressLine1', 'city', 'zipCode'];
@@ -336,30 +339,33 @@ const Task1 = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    boostSimulationActivity(0.4);
     log('form_submit_attempt', { formData });
-    if (validateForm()) {
-      setTimeout(() => {
-        log('form_submit_success', { formData });
-        logger.markEnd(true);
-        logger.saveToLocalStorage();
-        setIsSubmitted(true);
-        setFormData({
-          fullName: '',
-          addressLine1: '',
-          addressLine2: '',
-          city: '',
-          state: '',
-          zipCode: '',
-          country: 'US',
-          shippingMethod: 'standard'
-        });
-        setErrors({});
-        setIsTouched({});
-      }, 1000);
-    } else {
+
+    if (!validateForm()) {
       logger.logError();
       log('form_validation_error', { errors, formData });
+      return;
     }
+
+    setTimeout(() => {
+      log('form_submit_success', { formData });
+      logger.markEnd(true);
+      logger.saveToLocalStorage();
+      setIsSubmitted(true);
+      setFormData({
+        fullName: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'US',
+        shippingMethod: 'standard'
+      });
+      setErrors({});
+      setIsTouched({});
+    }, 1000);
   };
 
   const [sending, setSending] = useState(false);
@@ -417,16 +423,7 @@ const Task1 = () => {
           <small style={{ color: '#475569' }}>{loadState}</small>
         </BannerTitle>
         <p style={{ marginTop: '0.25rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
-        {insights.length > 0 && (
-          <BannerList>
-            {insights.map((insight) => (
-              <BannerItem key={insight.feature}>
-                <span>{insight.label}</span>
-                <span>{insight.advice}</span>
-              </BannerItem>
-            ))}
-          </BannerList>
-        )}
+          {/* insights removed due to missing cognitiveLoadHints */}
         {isHighLoad && (
           <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#b45309' }}>
             Optional address fields are collapsed to keep focus on required inputs.

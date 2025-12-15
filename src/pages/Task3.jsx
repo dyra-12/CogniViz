@@ -14,7 +14,8 @@ import BudgetSummary from '../components/travel/BudgetSummary';
 import TransportSelection from '../components/travel/TransportSelection';
 import Button from '../components/Button';
 import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
-import { describeLoadState, getTaskInsights } from '../utils/cognitiveLoadHints';
+import { boostSimulationActivity } from '../telemetry/wsClient';
+
 
 const PageContainer = styled.div`
   padding: ${props => props.theme.spacing[6]} 0;
@@ -141,8 +142,9 @@ const Task3 = () => {
   const { loadClass, shap, hydrated } = useCognitiveLoad();
   const loadState = hydrated ? loadClass : 'Calibrating';
   const isHighLoad = hydrated && loadClass === 'High';
-  const insights = useMemo(() => getTaskInsights(shap, 'task3', 3), [shap]);
-  const { title: loadTitle, message: loadMessage } = describeLoadState(loadState);
+  const insights = [];
+  const loadTitle = '';
+  const loadMessage = '';
   
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
@@ -188,6 +190,7 @@ const Task3 = () => {
       price: flight.price,
       arrivalTime: flight.arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     });
+    boostSimulationActivity(0.25);
     try { task3Logger.logFlightSelection(flight, 'outbound'); } catch (e) { /* ignore */ }
   };
 
@@ -199,6 +202,7 @@ const Task3 = () => {
       departureTime: flight.departureTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     });
     try { task3Logger.logFlightSelection(flight, 'return'); } catch (e) { /* ignore */ }
+    boostSimulationActivity(0.25);
   };
 
   const handleHotelSelect = (hotel) => {
@@ -209,6 +213,7 @@ const Task3 = () => {
       distance: hotel.distance
     });
     try { task3Logger.logHotelSelection(hotel); } catch (e) { /* ignore */ }
+    boostSimulationActivity(0.3);
   };
 
   const handleTransportSelect = (transport) => {
@@ -218,6 +223,7 @@ const Task3 = () => {
       price: transport.price
     });
     try { task3Logger.logTransportSelection(transport); } catch (e) { /* ignore */ }
+    boostSimulationActivity(0.2);
   };
 
   // Hover handlers for flights/hotels/transport
@@ -272,6 +278,7 @@ const Task3 = () => {
   // Meeting drag/drop instrumentation: drag start -> log; drop -> validate, log attempts
   const handleMeetingDragStart = (meetingId) => {
     try { task3Logger.logMeetingDragStart(meetingId); } catch (e) { /* ignore */ }
+    boostSimulationActivity(0.15);
   };
 
   const validateSingleMeetingPlacement = (meeting, day, hour, currentMeetings) => {
@@ -327,6 +334,7 @@ const Task3 = () => {
       setMeetings(prev => prev.map(m => m.id === meetingId ? { ...m, scheduled: true, day, startTime: hour } : m));
       log('meeting_scheduled', { meeting: meeting?.title, day, startTime: hour });
       try { task3Logger.logMeetingDropAttempt(meetingId, day, hour, true); } catch (e) { /* ignore */ }
+      boostSimulationActivity(0.25);
       // remove any prior validationErrors related to this meeting
       setValidationErrors(prev => prev.filter(msg => typeof msg === 'string' ? !msg.includes(meetingId) : true));
     } else {
@@ -336,6 +344,7 @@ const Task3 = () => {
       try { task3Logger.incrementError(); } catch (e) { /* ignore */ }
       // show error to user by appending to validationErrors with meeting id so we can remove later
       setValidationErrors(prev => [...prev, `Failed to place meeting ${meetingId}: ${reason}`]);
+      boostSimulationActivity(0.15);
     }
   };
 
@@ -350,6 +359,7 @@ const Task3 = () => {
     // Clear any meeting-related validation errors
     setValidationErrors(prev => prev.filter(msg => typeof msg === 'string' ? !msg.includes('meeting') && !msg.includes('Meeting') : true));
     log('meetings_reset');
+    boostSimulationActivity(0.1);
   };
 
   const validateConstraints = () => {
@@ -508,6 +518,7 @@ const Task3 = () => {
         const prevArea = handleComponentEnter._prevArea;
         if (prevArea) task3Logger.stopMouseEntropy(prevArea);
       } catch (e) { /* ignore */ }
+      boostSimulationActivity(0.4);
       setIsCompleted(true);
     } else {
       log('trip_finalize_failed', { errors: validationErrors });
@@ -522,10 +533,12 @@ const Task3 = () => {
         const prevArea = handleComponentEnter._prevArea;
         if (prevArea) task3Logger.stopMouseEntropy(prevArea);
       } catch (e) { /* ignore */ }
+      boostSimulationActivity(0.25);
     }
   };
 
   const handleComplete = () => {
+    boostSimulationActivity(0.4);
     completeCurrentTask();
   };
 
@@ -590,13 +603,7 @@ const Task3 = () => {
           <span style={{ fontSize: '0.85rem', color: '#475569' }}>{loadState}</span>
         </NoticeHeader>
         <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
-        {insights.length > 0 && (
-          <InsightChips>
-            {insights.map(insight => (
-              <InsightChip key={insight.feature}>{insight.label}</InsightChip>
-            ))}
-          </InsightChips>
-        )}
+        {/* insights removed due to missing cognitiveLoadHints */}
         <GuidedList>
           {guidedSteps.map(step => (
             <GuidedItem key={step.id} $completed={step.completed}>

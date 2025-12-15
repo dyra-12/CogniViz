@@ -8,7 +8,8 @@ import RequirementsChecklist from '../components/RequirementsChecklist';
 import useLogger from '../hooks/useLogger';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
-import { describeLoadState, getTaskInsights } from '../utils/cognitiveLoadHints';
+import { boostSimulationActivity } from '../telemetry/wsClient';
+
 
 const PageContainer = styled.div`
   padding: ${props => props.theme.spacing[6]} 0;
@@ -187,8 +188,9 @@ const Task2 = () => {
   const { loadClass, shap, hydrated } = useCognitiveLoad();
   const loadState = hydrated ? loadClass : 'Calibrating';
   const isHighLoad = hydrated && loadClass === 'High';
-  const insights = useMemo(() => getTaskInsights(shap, 'task2', 2), [shap]);
-  const { title: loadTitle, message: loadMessage } = describeLoadState(loadState);
+  const insights = [];
+  const loadTitle = '';
+  const loadMessage = '';
   // Expose logger globally for ProductCard click precision
   if (typeof window !== 'undefined') {
     window.__task2Logger = logger;
@@ -295,6 +297,7 @@ const Task2 = () => {
       value: newValue,
       previousValue: previousFilters[filterType]
     });
+    boostSimulationActivity(0.2);
   };
 
   const applyRecommendedPreset = () => {
@@ -310,6 +313,7 @@ const Task2 = () => {
     setFilters(preset);
     setPresetApplied(true);
     log('adaptive_filter_preset', { source: 'cognitive_load', loadState, preset });
+    boostSimulationActivity(0.3);
   };
 
   useEffect(() => {
@@ -330,12 +334,14 @@ const Task2 = () => {
       inStockOnly: false,
       sortBy: 'name'
     });
+    boostSimulationActivity(0.15);
   };
 
   const handleSortChange = (e) => {
     const newSort = e.target.value;
     log('sort_apply', { sortBy: newSort, previousSort: filters.sortBy });
     setFilters(prev => ({ ...prev, sortBy: newSort }));
+    boostSimulationActivity(0.1);
   };
 
   const handleProductClick = (product) => {
@@ -347,6 +353,7 @@ const Task2 = () => {
       price: product.price
     });
     // Optionally: logger.logProductClick(product.id);
+    boostSimulationActivity(0.25);
   };
 
   const handleAddToCart = (product) => {
@@ -372,6 +379,7 @@ const Task2 = () => {
       productName: product.name,
       price: product.price
     });
+    boostSimulationActivity(0.35);
     logger.markEnd();
     logger.saveToLocalStorage(true);
     setCheckoutStep('cart');
@@ -416,6 +424,7 @@ const Task2 = () => {
       product: selectedProduct,
       totalCost: selectedProduct.price
     });
+    boostSimulationActivity(0.4);
     completeCurrentTask();
   };
 
@@ -462,15 +471,7 @@ const Task2 = () => {
           <span style={{ fontSize: '0.85rem', color: '#475569' }}>{loadState}</span>
         </NoticeHeader>
         <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
-        {insights.length > 0 && (
-          <InsightChips>
-            {insights.map(insight => (
-              <InsightChip key={insight.feature}>
-                {insight.label}
-              </InsightChip>
-            ))}
-          </InsightChips>
-        )}
+        {/* insights removed due to missing cognitiveLoadHints */}
         {isHighLoad && (
           <QuickActions>
             <QuickActionButton type="button" onClick={applyRecommendedPreset}>

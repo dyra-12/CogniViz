@@ -9,8 +9,7 @@ import Task2 from '../pages/Task2';
 import Task3 from '../pages/Task3';
 import CompletionPage from '../pages/CompletionPage';
 import ConsentLanding from '../pages/ConsentLanding';
-import CognitiveLoadPanel from './CognitiveLoadPanel';
-import Demo from '../pages/Demo';
+
 
 const AppLayout = () => {
   const { 
@@ -34,7 +33,6 @@ const AppLayout = () => {
         <Routes>
           <Route path="/" element={<Navigate to={consentGiven ? `/task${currentTask}` : '/consent'} replace />} />
           <Route path="/consent" element={<ConsentLanding />} />
-          <Route path="/demo" element={<Demo />} />
           <Route path="/task1" element={consentGiven ? (currentTask === 1 ? <Task1 /> : <Navigate to={`/task${currentTask}`} replace />) : <Navigate to="/consent" replace />} />
           <Route path="/task2" element={consentGiven ? (currentTask === 2 ? <Task2 /> : <Navigate to={`/task${currentTask}`} replace />) : <Navigate to="/consent" replace />} />
           <Route path="/task3" element={consentGiven ? (currentTask === 3 ? <Task3 /> : <Navigate to={`/task${currentTask}`} replace />) : <Navigate to="/consent" replace />} />
@@ -57,7 +55,7 @@ const AppLayout = () => {
         taskId={questionnaireData.taskId}
         onSubmit={handleQuestionnaireSubmit}
       />
-      <CognitiveLoadPanel />
+
     </div>
   );
 };

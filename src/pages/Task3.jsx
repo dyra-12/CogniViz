@@ -14,7 +14,10 @@ import BudgetSummary from '../components/travel/BudgetSummary';
 import TransportSelection from '../components/travel/TransportSelection';
 import Button from '../components/Button';
 import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
-import { boostSimulationActivity } from '../telemetry/wsClient';
+import { boostSimulationActivity, setSimulationTask } from '../telemetry/wsClient';
+import CognitiveLoadGauge from '../components/CognitiveLoadGauge';
+import ExplanationBanner from '../components/ExplanationBanner';
+import TopFactorsList from '../components/TopFactorsList';
 
 
 const PageContainer = styled.div`
@@ -175,6 +178,10 @@ const Task3 = () => {
       console.warn('task3 logger start failed', e);
     }
   }, [log]);
+
+  useEffect(() => {
+    setSimulationTask(3);
+  }, []);
 
   const totalCost = (selectedOutboundFlight?.price || 0) + 
                    (selectedReturnFlight?.price || 0) + 
@@ -669,6 +676,10 @@ const Task3 = () => {
         </MainContent>
 
         <Sidebar>
+          <CognitiveLoadGauge />
+          <ExplanationBanner />
+          <TopFactorsList />
+          
           <BudgetSummary
             flight={selectedOutboundFlight}
             returnFlight={selectedReturnFlight}

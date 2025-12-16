@@ -8,7 +8,10 @@ import RequirementsChecklist from '../components/RequirementsChecklist';
 import useLogger from '../hooks/useLogger';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import { useCognitiveLoad } from '../contexts/CognitiveLoadContext';
-import { boostSimulationActivity } from '../telemetry/wsClient';
+import { boostSimulationActivity, setSimulationTask } from '../telemetry/wsClient';
+import CognitiveLoadGauge from '../components/CognitiveLoadGauge';
+import ExplanationBanner from '../components/ExplanationBanner';
+import TopFactorsList from '../components/TopFactorsList';
 
 
 const PageContainer = styled.div`
@@ -227,6 +230,10 @@ const Task2 = () => {
     log('catalog_view', { totalProducts: products.length });
     logger.markStart();
   }, [log]);
+
+  useEffect(() => {
+    setSimulationTask(2);
+  }, []);
 
   // Filter and sort products
   useMemo(() => {
@@ -554,6 +561,9 @@ const Task2 = () => {
 
         {/* Right Sidebar - Requirements Checklist */}
         <Sidebar>
+          <CognitiveLoadGauge />
+          <ExplanationBanner />
+          <TopFactorsList />
           <RequirementsChecklist 
             filters={filters}
             selectedProduct={selectedProduct}

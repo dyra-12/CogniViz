@@ -1,0 +1,78 @@
+.top-factors-list {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+}
+
+.factors-header {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.factors-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.factor-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  transition: all 0.3s ease-in-out;
+}
+
+.factor-item:hover {
+  background: #f3f4f6;
+  transform: translateX(4px);
+}
+
+.factor-name {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.factor-trend {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-right: 0.5rem;
+  transition: transform 0.3s ease-in-out;
+}
+
+.factor-trend.up {
+  color: #dc2626;
+  animation: bounce-up 1s ease-in-out infinite;
+}
+
+.factor-trend.down {
+  color: #16a34a;
+  animation: bounce-down 1s ease-in-out infinite;
+}
+
+@keyframes bounce-up {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+
+.factor-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #666;
+  min-width: 3rem;
+  text-align: right;
+}

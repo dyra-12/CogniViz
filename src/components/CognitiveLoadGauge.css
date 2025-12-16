@@ -1,0 +1,103 @@
+.cognitive-load-gauge {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+}
+
+.gauge-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gauge-indicator {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.gauge-bar {
+  flex: 1;
+  height: 2rem;
+  background: #f0f0f0;
+  border-radius: 1rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.gauge-fill {
+  height: 100%;
+  border-radius: 1rem;
+  transition: all 0.5s ease-in-out;
+  position: relative;
+}
+
+.gauge-fill.low {
+  width: 33%;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  animation: pulse-low 2s ease-in-out infinite;
+}
+
+.gauge-fill.medium {
+  width: 66%;
+  background: linear-gradient(90deg, #eab308, #f59e0b);
+  animation: pulse-medium 2s ease-in-out infinite;
+}
+
+.gauge-fill.high {
+  width: 100%;
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+  animation: pulse-high 2s ease-in-out infinite;
+}
+
+@keyframes pulse-low {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes pulse-medium {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes pulse-high {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.gauge-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  min-width: 80px;
+  text-align: right;
+  transition: color 0.5s ease-in-out;
+}
+
+.gauge-indicator.low .gauge-text {
+  color: #16a34a;
+}
+
+.gauge-indicator.medium .gauge-text {
+  color: #f59e0b;
+}
+
+.gauge-indicator.high .gauge-text {
+  color: #dc2626;
+}

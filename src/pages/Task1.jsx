@@ -140,6 +140,52 @@ const BannerTitle = styled.div`
   color: ${props => props.theme.colors.dark};
 `;
 
+const LoadPill = styled.span`
+  padding: 0.15rem 0.85rem;
+  border-radius: 999px;
+  font-size: ${props => props.theme.fontSizes.xs};
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  color: ${({ $level }) => {
+    switch ($level) {
+      case 'Low':
+        return '#15803d';
+      case 'Medium':
+        return '#b45309';
+      case 'High':
+        return '#b91c1c';
+      default:
+        return '#0f766e';
+    }
+  }};
+  background: ${({ $level }) => {
+    switch ($level) {
+      case 'Low':
+        return 'rgba(34,197,94,0.12)';
+      case 'Medium':
+        return 'rgba(234,179,8,0.15)';
+      case 'High':
+        return 'rgba(239,68,68,0.12)';
+      default:
+        return 'rgba(15,118,110,0.12)';
+    }
+  }};
+  border-color: ${({ $level }) => {
+    switch ($level) {
+      case 'Low':
+        return 'rgba(21,128,61,0.4)';
+      case 'Medium':
+        return 'rgba(180,83,9,0.4)';
+      case 'High':
+        return 'rgba(185,28,28,0.4)';
+      default:
+        return 'rgba(15,118,110,0.35)';
+    }
+  }};
+`;
+
 const BannerList = styled.ul`
   list-style: none;
   padding: 0;
@@ -228,7 +274,7 @@ const CognitiveLoadSidebar = styled.div`
   height: fit-content;
 `;
 
-const LOW_LOAD_EXPLANATION = 'Fluent sequential entry detected. Minimal hesitation and near-perfect completion efficiency.';
+const LOW_LOAD_EXPLANATION = 'Low cognitive load detected due to fluent form completion, minimal hesitation, and high entry efficiency.';
 
 const INITIAL_LOAD_METRICS = {
   focusTimeMs: 0,
@@ -250,11 +296,66 @@ const average = (values = []) => {
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
+const ROLLING_WINDOW_MS = 60000;
+const IDLE_THRESHOLD_MS = 2000;
+const FOCUS_SAMPLE_LIMIT = 5;
+const HESITATION_SAMPLE_LIMIT = 10;
+
+const pruneSamples = (samples) => {
+  const cutoff = getNow() - ROLLING_WINDOW_MS;
+  while (samples.length && samples[0].ts < cutoff) {
+    samples.shift();
+  }
+};
+
 const pushSample = (samples, value, limit = 25) => {
-  samples.push(value);
+  const entry = { value, ts: getNow() };
+  samples.push(entry);
   if (samples.length > limit) {
     samples.shift();
   }
+  pruneSamples(samples);
+};
+
+const getAverageFromSamples = (samples, recentCount = samples.length) => {
+  if (!samples.length) return 0;
+  const recent = samples.slice(-recentCount);
+  const total = recent.reduce((sum, sample) => sum + sample.value, 0);
+  return total / recent.length;
+};
+
+const pruneEventList = (events) => {
+  const cutoff = getNow() - ROLLING_WINDOW_MS;
+  let dropIndex = 0;
+  while (dropIndex < events.length && events[dropIndex].ts < cutoff) {
+    dropIndex += 1;
+  }
+  if (dropIndex) {
+    events.splice(0, dropIndex);
+  }
+};
+
+const getUniqueFieldCount = (events) => {
+  pruneEventList(events);
+  return new Set(events.map(event => event.field)).size;
+};
+
+const pruneActivitySamples = (samples) => {
+  const cutoff = getNow() - ROLLING_WINDOW_MS;
+  while (samples.length && samples[0].ts < cutoff) {
+    samples.shift();
+  }
+};
+
+const computeIdleRatio = (samples) => {
+  pruneActivitySamples(samples);
+  const totals = samples.reduce((acc, sample) => {
+    acc.idle += sample.idleMs;
+    acc.total += sample.idleMs + sample.activeMs;
+    return acc;
+  }, { idle: 0, total: 0 });
+  const denominator = totals.total || ROLLING_WINDOW_MS;
+  return clamp01(totals.idle / denominator);
 };
 
 const focusNarratives = {
@@ -279,6 +380,34 @@ const idleNarratives = {
   low: 'Barely any idle time between actions.',
   medium: 'Moderate idle gaps observed.',
   high: 'Large idle windows indicate deliberation.',
+};
+
+const getHeuristicLoadLevel = (metrics = {}) => {
+  const {
+    focusTimeMs = 0,
+    hesitationMs = 0,
+    efficiency = 1,
+    idleRatio = 0,
+    focusSamples = 0,
+  } = metrics;
+
+  // Early interactions: avoid spiking to HIGH before we have enough focus samples
+  if (focusSamples < 2 && hesitationMs === 0) return 'CALIBRATING';
+
+  // For the first few fields, soften efficiency penalties to avoid false HIGH
+  const effectiveEfficiency = focusSamples >= 3 ? efficiency : Math.max(efficiency, 0.9);
+
+  // LOW: smooth typing, strong efficiency, low idle
+  const lowLoad =
+    hesitationMs > 0 && hesitationMs < 500 &&
+    effectiveEfficiency >= 0.9 &&
+    idleRatio < 0.06;
+
+  if (lowLoad) return 'LOW';
+
+  // MEDIUM: pauses (including long 7-10s hesitations) or incomplete fields.
+  // Task 1 intentionally does not surface HIGH to keep UX gentle.
+  return 'MEDIUM';
 };
 
 function buildTask1PredictionSnapshot(metrics) {
@@ -361,16 +490,15 @@ const Task1 = () => {
 
   const [loadMetrics, setLoadMetrics] = useState(INITIAL_LOAD_METRICS);
   const metricsRef = useRef({
-    sessionStart: getNow(),
     lastFocusTs: null,
     focusDurations: [],
     pendingHesitation: null,
     hesitationDurations: [],
-    uniqueFocusedFields: new Set(),
-    filledFields: new Set(),
+    focusEvents: [],
+    completionEvents: [],
     lastActivityTs: getNow(),
     lastTickTs: getNow(),
-    idleAccumMs: 0,
+    activitySamples: [],
   });
   const manualOverrideRef = useRef(false);
 
@@ -382,13 +510,24 @@ const Task1 = () => {
     const state = metricsRef.current;
     const focusSamples = state.focusDurations.length;
     const hesitationSamples = state.hesitationDurations.length;
+    const focusTimeMs = focusSamples
+      ? getAverageFromSamples(state.focusDurations, FOCUS_SAMPLE_LIMIT)
+      : 0;
+    const hesitationMs = hesitationSamples
+      ? getAverageFromSamples(state.hesitationDurations, HESITATION_SAMPLE_LIMIT)
+      : 0;
+    const focusCount = getUniqueFieldCount(state.focusEvents);
+    const completedCount = getUniqueFieldCount(state.completionEvents);
+    const efficiency = focusCount ? clamp01(completedCount / focusCount) : 1;
+    const idleRatio = computeIdleRatio(state.activitySamples);
+
     const snapshot = {
-      focusTimeMs: focusSamples ? average(state.focusDurations) : 0,
+      focusTimeMs,
       focusSamples,
-      hesitationMs: hesitationSamples ? average(state.hesitationDurations) : 0,
+      hesitationMs,
       hesitationSamples,
-      efficiency: clamp01(state.filledFields.size / Math.max(1, state.uniqueFocusedFields.size)),
-      idleRatio: clamp01(state.idleAccumMs / Math.max(1, getNow() - state.sessionStart)),
+      efficiency,
+      idleRatio,
     };
 
     setLoadMetrics(prev => {
@@ -406,9 +545,10 @@ const Task1 = () => {
   const recordFocusEvent = (fieldName) => {
     const state = metricsRef.current;
     const now = getNow();
-    state.uniqueFocusedFields.add(fieldName);
+    state.focusEvents.push({ field: fieldName, ts: now });
+    pruneEventList(state.focusEvents);
     if (state.lastFocusTs) {
-      pushSample(state.focusDurations, now - state.lastFocusTs);
+      pushSample(state.focusDurations, now - state.lastFocusTs, FOCUS_SAMPLE_LIMIT);
     }
     state.lastFocusTs = now;
     state.pendingHesitation = { field: fieldName, ts: now, captured: false };
@@ -420,7 +560,7 @@ const Task1 = () => {
     const pending = state.pendingHesitation;
     if (!pending || pending.field !== fieldName || pending.captured) return;
     const now = getNow();
-    pushSample(state.hesitationDurations, now - pending.ts);
+    pushSample(state.hesitationDurations, now - pending.ts, HESITATION_SAMPLE_LIMIT);
     pending.captured = true;
     updateMetricsSnapshot();
   };
@@ -428,10 +568,10 @@ const Task1 = () => {
   const trackFieldCompletion = (fieldName, rawValue) => {
     const state = metricsRef.current;
     const normalized = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+    pruneEventList(state.completionEvents);
+    state.completionEvents = state.completionEvents.filter(event => event.field !== fieldName);
     if (normalized) {
-      state.filledFields.add(fieldName);
-    } else {
-      state.filledFields.delete(fieldName);
+      state.completionEvents.push({ field: fieldName, ts: getNow() });
     }
     updateMetricsSnapshot();
   };
@@ -439,32 +579,40 @@ const Task1 = () => {
   const resetHeuristicTracking = () => {
     const now = getNow();
     metricsRef.current = {
-      sessionStart: now,
       lastFocusTs: null,
       focusDurations: [],
       pendingHesitation: null,
       hesitationDurations: [],
-      uniqueFocusedFields: new Set(),
-      filledFields: new Set(),
       lastActivityTs: now,
       lastTickTs: now,
-      idleAccumMs: 0,
+      focusEvents: [],
+      completionEvents: [],
+      activitySamples: [],
     };
     setLoadMetrics({ ...INITIAL_LOAD_METRICS });
   };
 
-  const hasStableSamples = loadMetrics.focusSamples >= 2 && loadMetrics.hesitationSamples >= 1;
-  const lowLoadDetected = hasStableSamples &&
-    loadMetrics.hesitationMs > 0 &&
-    loadMetrics.hesitationMs < 300 &&
-    loadMetrics.efficiency >= 0.9 &&
-    loadMetrics.idleRatio < 0.05;
-
+  const hasStableSamples = loadMetrics.focusSamples >= 1 && loadMetrics.hesitationSamples >= 1;
+  const heuristicLoadLevel = hasStableSamples ? getHeuristicLoadLevel(loadMetrics) : 'CALIBRATING';
+  const formatLabel = (label = 'Calibrating') => label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
   const remoteLoadState = hydrated ? loadClass : 'Calibrating';
-  const loadState = lowLoadDetected ? 'Low' : remoteLoadState;
-  const loadTitle = lowLoadDetected ? 'Fluent sequential entry' : 'Adaptive guidance';
-  const loadMessage = lowLoadDetected ? LOW_LOAD_EXPLANATION : 'Monitoring for any rise in load.';
+  const loadState = hasStableSamples
+    ? formatLabel(heuristicLoadLevel.toLowerCase())
+    : formatLabel(remoteLoadState || 'Calibrating');
+  const lowLoadDetected = hasStableSamples && heuristicLoadLevel === 'LOW';
   const isHighLoad = loadState === 'High';
+  const loadTitleMap = {
+    Low: 'Fluent sequential entry',
+    Medium: 'Adaptive pacing in progress',
+  };
+  const loadMessageMap = {
+    Low: LOW_LOAD_EXPLANATION,
+    Medium: 'Moderate load: brief pause before typing or empty required fields are visible.',
+  };
+  const loadTitle = hasStableSamples ? (loadTitleMap[loadState] || 'Adaptive guidance') : 'Baseline Established';
+  const loadMessage = hasStableSamples
+    ? (loadMessageMap[loadState] || 'Monitoring for any rise in load.')
+    : 'Establishing baselines for Focus Dwell Time, Form Hesitation, and Entry Efficiency.';
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -496,12 +644,16 @@ const Task1 = () => {
       const state = metricsRef.current;
       const now = getNow();
       const delta = now - state.lastTickTs;
-      if (now - state.lastActivityTs > 2000) {
-        state.idleAccumMs += delta;
-      }
+      const isIdle = now - state.lastActivityTs > IDLE_THRESHOLD_MS;
+      state.activitySamples.push({
+        ts: now,
+        idleMs: isIdle ? delta : 0,
+        activeMs: isIdle ? 0 : delta,
+      });
+      pruneActivitySamples(state.activitySamples);
       state.lastTickTs = now;
       updateMetricsSnapshot();
-    }, 600);
+    }, 500);
 
     return () => clearInterval(idleInterval);
   }, [updateMetricsSnapshot]);
@@ -542,71 +694,63 @@ const Task1 = () => {
 
   // Update cognitive load context based on Task1 metrics
   const { updateState: updateCognitiveLoad } = useCognitiveLoad();
-  
+
   useEffect(() => {
-    const deriveLoadLevel = () => {
-      const { focusTimeMs, hesitationMs, efficiency } = metricsRef.current;
-      
-      // High load: rapid focus switching, high hesitation, or low efficiency
-      if (focusTimeMs < 800 || hesitationMs > 600 || efficiency < 0.7) {
-        return 'HIGH';
-      }
-      // Medium load: moderate metrics
-      if (focusTimeMs < 1200 || hesitationMs > 350 || efficiency < 0.85) {
-        return 'MEDIUM';
-      }
-      return 'LOW';
-    };
-
-    const buildExplanation = () => {
-      const { focusTimeMs, hesitationMs, efficiency, idleRatio } = metricsRef.current;
-      const level = deriveLoadLevel();
-      
-      if (level === 'LOW') {
-        return 'Low cognitive load detected. Stable Focus Dwell Time and fluent Form Progression observed.';
-      } else if (level === 'MEDIUM') {
-        return 'Moderate activity detected with some hesitation in Form Entry and focus switching.';
-      } else {
-        return 'High cognitive load: rapid Focus Switches, increased Form Hesitation, and reduced completion efficiency.';
-      }
-    };
-
     const buildTopFactors = () => {
-      const { focusTimeMs, hesitationMs, efficiency } = metricsRef.current;
       const factors = [];
-      
-      if (focusTimeMs < 1000) factors.push('Focus Dwell Time');
-      if (hesitationMs > 400) factors.push('Form Hesitation');
-      if (efficiency < 0.85) factors.push('Entry Efficiency');
-      
-      return factors.slice(0, 3);
+      const { focusTimeMs, hesitationMs, efficiency, idleRatio } = loadMetrics;
+
+      if (focusTimeMs && (focusTimeMs < 900 || focusTimeMs > 1500)) {
+        factors.push('Focus Dwell Time');
+      }
+      if (hesitationMs && hesitationMs >= 400) {
+        factors.push('Form Hesitation');
+      }
+      if (efficiency < 0.9) {
+        factors.push('Entry Efficiency');
+      }
+      if (idleRatio > 0.06) {
+        factors.push('Idle Time');
+      }
+
+      if (!factors.length) {
+        factors.push('Focus Dwell Time', 'Form Hesitation');
+      }
+
+      return [...new Set(factors)].slice(0, 3);
     };
 
-    const interval = setInterval(() => {
-      const { focusTimeMs, hesitationMs, efficiency, idleRatio } = metricsRef.current;
-      
-      updateCognitiveLoad({
-        loadLevel: deriveLoadLevel(),
-        metrics: {
-          'Focus Dwell Time': Math.min(focusTimeMs / 2000, 1),
-          'Form Hesitation': Math.min(hesitationMs / 1000, 1),
-          'Entry Efficiency': 1 - efficiency,
-          'Idle Time': idleRatio
-        },
-        topFactors: buildTopFactors(),
-        explanation: buildExplanation()
-      });
-    }, 500);
+    const buildExplanation = (level) => {
+      switch (level) {
+        case 'LOW':
+          return 'Low cognitive load detected due to fluent Focus Dwell Time, minimal Form Hesitation, and high Entry Efficiency.';
+        case 'MEDIUM':
+          return 'Moderate load: pause before typing or empty required fields are raising Form Hesitation and lowering Entry Efficiency.';
+        default:
+          return 'Establishing baselines for Focus Dwell Time, Form Hesitation, and Entry Efficiency.';
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [updateCognitiveLoad]);
+    const loadLevel = hasStableSamples ? heuristicLoadLevel : 'CALIBRATING';
+
+    updateCognitiveLoad({
+      loadLevel,
+      metrics: {
+        'Focus Dwell Time': clamp01(loadMetrics.focusTimeMs / 2500),
+        'Form Hesitation': clamp01(loadMetrics.hesitationMs / 900),
+        'Entry Efficiency': clamp01(1 - loadMetrics.efficiency),
+        'Idle Time': clamp01(loadMetrics.idleRatio / 0.12),
+      },
+      topFactors: buildTopFactors(),
+      explanation: buildExplanation(loadLevel),
+    });
+  }, [hasStableSamples, heuristicLoadLevel, loadMetrics, updateCognitiveLoad]);
 
   // Enhanced handlers to integrate logger
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     registerActivity();
     setFormData(prev => ({ ...prev, [name]: value }));
-    trackFieldCompletion(name, value);
     if (type === 'radio' && name === 'shippingMethod') {
       logger.onShippingMethodChange();
     }
@@ -630,6 +774,7 @@ const Task1 = () => {
     registerActivity();
     setIsTouched(prev => ({ ...prev, [name]: true }));
     validateField(name, value);
+    trackFieldCompletion(name, value);
     logger.getFieldProps(name, value).onBlur(e);
     log('form_field_interaction', { fieldName: name, value, action: 'blur' });
   };
@@ -786,7 +931,7 @@ const Task1 = () => {
         <AdaptiveBanner $load={loadState}>
           <BannerTitle>
             <span>{loadTitle}</span>
-            <small style={{ color: '#475569' }}>{loadState}</small>
+            <LoadPill $level={loadState}>{loadState}</LoadPill>
           </BannerTitle>
           <p style={{ marginTop: '0.25rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
             {/* insights removed due to missing cognitiveLoadHints */}

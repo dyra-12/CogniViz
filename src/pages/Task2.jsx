@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import useTask2Logger from '../hooks/useTask2Logger';
 import styled from 'styled-components';
 import { products, getUniqueBrands, getUniqueRAM } from '../data/products';
@@ -12,6 +12,9 @@ import { boostSimulationActivity, setSimulationTask } from '../telemetry/wsClien
 import CognitiveLoadGauge from '../components/CognitiveLoadGauge';
 import ExplanationBanner from '../components/ExplanationBanner';
 import TopFactorsList from '../components/TopFactorsList';
+
+const LOW_EXPLANATION = 'Low cognitive load detected. Decisive selection behavior observed.';
+const MEDIUM_EXPLANATION = 'Moderate cognitive load detected due to active comparison across multiple options.';
 
 
 const PageContainer = styled.div`
@@ -188,12 +191,12 @@ const Task2 = () => {
   const { log } = useLogger();
   const { completeCurrentTask } = useTaskProgress();
   const logger = useTask2Logger();
-  const { loadClass, shap, hydrated } = useCognitiveLoad();
-  const loadState = hydrated ? loadClass : 'Calibrating';
-  const isHighLoad = hydrated && loadClass === 'High';
+  const { updateState: updateCognitiveLoad } = useCognitiveLoad();
+  const [loadState, setLoadState] = useState('MEDIUM');
+  const isHighLoad = false; // Task 2 never goes High
   const insights = [];
-  const loadTitle = '';
-  const loadMessage = '';
+  const loadTitle = loadState === 'LOW' ? 'Decisive selection' : 'Active exploration';
+  const loadMessage = loadState === 'LOW' ? LOW_EXPLANATION : MEDIUM_EXPLANATION;
   // Expose logger globally for ProductCard click precision
   if (typeof window !== 'undefined') {
     window.__task2Logger = logger;
@@ -217,6 +220,69 @@ const Task2 = () => {
   const [presetApplied, setPresetApplied] = useState(false);
   const [showFullResults, setShowFullResults] = useState(true);
 
+  // Exploration metrics (local heuristic for Task 2 only)
+  const metricsRef = useRef({
+    startTs: performance.now(),
+    uniqueProducts: new Set(),
+    uniqueFilters: new Set(),
+    hoverOscillations: 0,
+    hoverSwitches: 0,
+    filterChanges: 0,
+    actionTimestamps: [],
+    lastHoverProduct: null,
+    prevHoverProduct: null,
+    decisionMade: false,
+    timeToDecisionMs: null,
+  });
+
+  const ACTION_WINDOW_MS = 30000;
+
+  const recordAction = () => {
+    const now = performance.now();
+    metricsRef.current.actionTimestamps.push(now);
+    // prune
+    metricsRef.current.actionTimestamps = metricsRef.current.actionTimestamps.filter(ts => now - ts <= ACTION_WINDOW_MS);
+  };
+
+  const updateLoadMetrics = () => {
+    const now = performance.now();
+    const m = metricsRef.current;
+    const actionDensity = m.actionTimestamps.length / 10; // normalized simple proxy
+    const explorationBreadth = m.uniqueProducts.size + m.uniqueFilters.size;
+    const loadLevel = (() => {
+      // Default MEDIUM
+      // LOW when decisive: low breadth, no oscillations, quick decision
+      const decisive = m.decisionMade
+        && m.timeToDecisionMs !== null
+        && m.timeToDecisionMs < 20000
+        && m.uniqueProducts.size <= 2
+        && m.hoverOscillations === 0
+        && m.filterChanges <= 1;
+      return decisive ? 'LOW' : 'MEDIUM';
+    })();
+    setLoadState(loadLevel);
+
+    const topFactors = loadLevel === 'MEDIUM'
+      ? ['Decision Uncertainty', 'Exploration Breadth', 'Multitasking Load']
+      : ['Focused Exploration ↓', 'Decisive Action'];
+
+    const metricsPayload = {
+      'Decision Uncertainty': loadLevel === 'MEDIUM' ? Math.min(1, m.hoverOscillations / 5) : 0,
+      'Exploration Breadth': loadLevel === 'MEDIUM' ? Math.min(1, explorationBreadth / 6) : 0,
+      'Multitasking Load': loadLevel === 'MEDIUM' ? Math.min(1, (m.filterChanges + m.hoverSwitches) / 10 + actionDensity / 5) : 0,
+      'Focused Exploration': loadLevel === 'LOW' ? Math.max(0, 1 - explorationBreadth / 4) : 0,
+    };
+
+    const explanation = loadLevel === 'LOW' ? LOW_EXPLANATION : MEDIUM_EXPLANATION;
+
+    updateCognitiveLoad({
+      loadLevel,
+      metrics: metricsPayload,
+      topFactors,
+      explanation,
+    });
+  };
+
   useEffect(() => {
     if (isHighLoad) {
       setShowFullResults(false);
@@ -229,6 +295,7 @@ const Task2 = () => {
   useEffect(() => {
     log('catalog_view', { totalProducts: products.length });
     logger.markStart();
+    updateLoadMetrics();
   }, [log]);
 
   useEffect(() => {
@@ -295,6 +362,10 @@ const Task2 = () => {
         : filters[filterType].filter(item => item !== value);
     }
     logger.logFilterUse(filterType, filterAction, previousFilters[filterType], newValue);
+    metricsRef.current.uniqueFilters.add(filterType);
+    metricsRef.current.filterChanges += 1;
+    recordAction();
+    updateLoadMetrics();
     setFilters(prev => ({
       ...prev,
       [filterType]: newValue
@@ -353,6 +424,10 @@ const Task2 = () => {
 
   const handleProductClick = (product) => {
     setSelectedProduct(product);
+    metricsRef.current.decisionMade = true;
+    metricsRef.current.timeToDecisionMs = performance.now() - metricsRef.current.startTs;
+    recordAction();
+    updateLoadMetrics();
     log('product_click', {
       productId: product.id,
       productName: product.name,
@@ -381,6 +456,10 @@ const Task2 = () => {
       return;
     }
     setSelectedProduct(product);
+    metricsRef.current.decisionMade = true;
+    metricsRef.current.timeToDecisionMs = performance.now() - metricsRef.current.startTs;
+    recordAction();
+    updateLoadMetrics();
     log('add_to_cart', {
       productId: product.id,
       productName: product.name,
@@ -533,7 +612,22 @@ const Task2 = () => {
                 product={product}
                 onProductClick={handleProductClick}
                 onAddToCart={handleAddToCart}
-                onProductHoverStart={() => logger.logProductHoverStart(product.id)}
+                onProductHoverStart={() => {
+                  const last = metricsRef.current.lastHoverProduct;
+                  const prev = metricsRef.current.prevHoverProduct;
+                  if (last && last !== product.id) {
+                    metricsRef.current.hoverSwitches += 1;
+                    if (prev && prev === product.id) {
+                      metricsRef.current.hoverOscillations += 1; // A->B->A pattern
+                    }
+                    metricsRef.current.prevHoverProduct = last;
+                  }
+                  metricsRef.current.lastHoverProduct = product.id;
+                  metricsRef.current.uniqueProducts.add(product.id);
+                  recordAction();
+                  updateLoadMetrics();
+                  logger.logProductHoverStart(product.id);
+                }}
                 onProductHoverEnd={() => logger.logProductHoverEnd(product.id)}
               />
             ))}

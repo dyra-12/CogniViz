@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTaskProgress } from '../contexts/TaskProgressContext';
 import useLogger from '../hooks/useLogger';
@@ -138,16 +138,32 @@ const QuickActionButton = styled.button`
   margin-top: ${props => props.theme.spacing[3]};
 `;
 
+const MEDIUM_EXPLANATION = 'Moderate cognitive load detected during initial trip planning.';
+const HIGH_EXPLANATION = 'High cognitive load detected due to repeated scheduling conflicts and constraint resolution effort.';
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
 const Task3 = () => {
   const { completeCurrentTask } = useTaskProgress();
   const { log } = useLogger();
   const task3Logger = useTask3Logger();
-  const { loadClass, shap, hydrated } = useCognitiveLoad();
-  const loadState = hydrated ? loadClass : 'Calibrating';
-  const isHighLoad = hydrated && loadClass === 'High';
-  const insights = [];
-  const loadTitle = '';
-  const loadMessage = '';
+  const { updateState: updateCognitiveLoad } = useCognitiveLoad();
+
+  const [loadState, setLoadState] = useState('MEDIUM');
+  const loadSignalsRef = useRef({
+    violationEvents: [],
+    schedulingFailures: [],
+    lastViolationTs: null,
+    conflictStartTs: null,
+    lastResolutionTs: null,
+    lastSuccessTs: null,
+    successStreakStart: null,
+    cumulativeConflictMs: 0,
+    lastEvalTs: performance.now(),
+    currentLoad: 'MEDIUM'
+  });
+  const prevBudgetRef = useRef(null);
+  const lastValidationSignatureRef = useRef('');
   
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
@@ -161,6 +177,170 @@ const Task3 = () => {
   
   const [validationErrors, setValidationErrors] = useState([]);
   const [isCompleted, setIsCompleted] = useState(false);
+
+  const totalCost = (selectedOutboundFlight?.price || 0) + 
+                   (selectedReturnFlight?.price || 0) + 
+                   (selectedHotel?.totalPrice || 0) + 
+                   (selectedTransport?.price || 0);
+
+  const remainingBudget = 1380 - totalCost; // Changed to $1,380
+
+  const computeMeetingConflicts = useCallback(() => {
+    const conflicts = [];
+    meetings.forEach((meeting) => {
+      if (!meeting.scheduled) return;
+      if (meeting.constraints.allowedDays && !meeting.constraints.allowedDays.includes(meeting.day)) {
+        conflicts.push('wrong_day');
+      }
+      if (meeting.startTime < meeting.constraints.timeRange.start || meeting.startTime + meeting.duration > meeting.constraints.timeRange.end) {
+        conflicts.push('time_range');
+      }
+      if (meeting.constraints.mustFollow) {
+        const followed = meetings.find(m => m.id === meeting.constraints.mustFollow);
+        if (followed && followed.scheduled) {
+          const invalidOrder = meeting.day < followed.day || (meeting.day === followed.day && meeting.startTime <= followed.startTime + followed.duration);
+          if (invalidOrder) conflicts.push('must_follow');
+        }
+      }
+      if (meeting.constraints.mustPrecede) {
+        const preceded = meetings.find(m => m.id === meeting.constraints.mustPrecede);
+        if (preceded && preceded.scheduled) {
+          const invalidOrder = meeting.day > preceded.day || (meeting.day === preceded.day && meeting.startTime + meeting.duration >= preceded.startTime);
+          if (invalidOrder) conflicts.push('must_precede');
+        }
+      }
+      if (meeting.constraints.cannotOverlapWith) {
+        meeting.constraints.cannotOverlapWith.forEach((otherId) => {
+          const other = meetings.find(m => m.id === otherId);
+          if (other && other.scheduled && other.day === meeting.day) {
+            const meetingEnd = meeting.startTime + meeting.duration;
+            const otherEnd = other.startTime + other.duration;
+            if (!(meetingEnd <= other.startTime || meeting.startTime >= otherEnd)) {
+              conflicts.push('overlap');
+            }
+          }
+        });
+      }
+    });
+    return conflicts;
+  }, [meetings]);
+
+  const computeActiveConflicts = useCallback(() => {
+    const conflicts = [];
+    if (remainingBudget < 0) conflicts.push('budget');
+    if (selectedOutboundFlight && selectedOutboundFlight.arrivalTime.getHours() >= 15) conflicts.push('outbound_time');
+    if (selectedReturnFlight && selectedReturnFlight.departureTime.getHours() < 12) conflicts.push('return_time');
+    if (selectedHotel && (selectedHotel.distance > 5 || selectedHotel.stars < 3)) conflicts.push('hotel_rules');
+    const meetingConflicts = computeMeetingConflicts();
+    if (meetingConflicts.length) {
+      meetingConflicts.forEach(tag => conflicts.push(`meeting_${tag}`));
+    }
+    return conflicts;
+  }, [computeMeetingConflicts, remainingBudget, selectedHotel, selectedOutboundFlight, selectedReturnFlight]);
+
+  const pushLoadToContext = useCallback((level, metrics) => {
+    const topFactors = level === 'HIGH'
+      ? ['Scheduling Difficulty ↑', 'Constraint Violations ↑', 'Recovery Efficiency ↓', 'Resolution Effort ↑']
+      : ['Planning Activity', 'Constraint Awareness'];
+    const explanation = level === 'HIGH' ? HIGH_EXPLANATION : MEDIUM_EXPLANATION;
+    const upScore = (v) => clamp01(0.5 + 0.5 * clamp01(v));
+    const downScore = (v) => clamp01(0.49 * (1 - clamp01(v)));
+    const metricsPayload = level === 'HIGH'
+      ? {
+          'Scheduling Difficulty ↑': upScore(metrics.schedulingPressure),
+          'Constraint Violations ↑': upScore(metrics.violationPressure),
+          'Recovery Efficiency ↓': downScore(metrics.recoveryLag),
+          'Resolution Effort ↑': upScore(metrics.resolutionEffort),
+        }
+      : {
+          'Planning Activity': metrics.planningActivity,
+          'Constraint Awareness': metrics.constraintAwareness,
+        };
+
+    updateCognitiveLoad({
+      loadLevel: level,
+      metrics: metricsPayload,
+      topFactors,
+      explanation,
+    });
+  }, [updateCognitiveLoad]);
+
+  const evaluateLoadFromSignals = useCallback((source = 'tick') => {
+    const now = performance.now();
+    const signals = loadSignalsRef.current;
+    const windowMs = 30000;
+
+    signals.violationEvents = signals.violationEvents.filter(ev => now - ev.ts <= windowMs);
+    signals.schedulingFailures = signals.schedulingFailures.filter(ev => now - ev.ts <= windowMs);
+
+    const activeConflicts = computeActiveConflicts();
+    const hasConflicts = activeConflicts.length > 0;
+
+    const delta = now - (signals.lastEvalTs || now);
+    signals.lastEvalTs = now;
+    if (hasConflicts) {
+      signals.cumulativeConflictMs += delta;
+      if (!signals.conflictStartTs) signals.conflictStartTs = now;
+      signals.successStreakStart = null;
+    } else if (signals.conflictStartTs) {
+      signals.lastResolutionTs = now;
+      signals.conflictStartTs = null;
+    }
+
+    const violationsCount = signals.violationEvents.length;
+    const schedulingFailuresCount = signals.schedulingFailures.length;
+    const recoveryMs = signals.conflictStartTs ? now - signals.conflictStartTs : 0;
+    const shouldHigh = violationsCount >= 2 || schedulingFailuresCount >= 3 || recoveryMs > 6000;
+
+    let nextLoad = signals.currentLoad || 'MEDIUM';
+    if (nextLoad === 'HIGH') {
+      const noConflicts = activeConflicts.length === 0;
+      const optionA = noConflicts && signals.lastResolutionTs && now - signals.lastResolutionTs >= 10000 && (!signals.lastViolationTs || now - signals.lastViolationTs >= 10000);
+      const optionB = noConflicts && signals.successStreakStart && (!signals.lastViolationTs || now - signals.lastViolationTs >= 8000) && (now - signals.successStreakStart >= 8000);
+      nextLoad = (optionA || optionB) ? 'MEDIUM' : 'HIGH';
+    } else {
+      nextLoad = shouldHigh ? 'HIGH' : 'MEDIUM';
+    }
+
+    signals.currentLoad = nextLoad;
+    setLoadState(nextLoad);
+
+    const metrics = {
+      schedulingPressure: clamp01(schedulingFailuresCount / 3),
+      violationPressure: clamp01(violationsCount / 3),
+      recoveryLag: clamp01(recoveryMs / 12000),
+      resolutionEffort: clamp01(signals.cumulativeConflictMs / 20000),
+      planningActivity: clamp01((meetings.filter(m => m.scheduled).length + (selectedOutboundFlight ? 1 : 0) + (selectedReturnFlight ? 1 : 0) + (selectedHotel ? 1 : 0) + (selectedTransport ? 1 : 0)) / 8),
+      constraintAwareness: clamp01((violationsCount + schedulingFailuresCount) / 4),
+      activeConflictsCount: activeConflicts.length,
+      source,
+    };
+
+    pushLoadToContext(nextLoad, metrics);
+  }, [computeActiveConflicts, meetings, pushLoadToContext, selectedHotel, selectedOutboundFlight, selectedReturnFlight, selectedTransport]);
+
+  const recordViolationEvent = useCallback((type, detail = null) => {
+    const now = performance.now();
+    loadSignalsRef.current.violationEvents.push({ ts: now, type, detail });
+    loadSignalsRef.current.lastViolationTs = now;
+    loadSignalsRef.current.successStreakStart = null;
+    evaluateLoadFromSignals('violation');
+  }, [evaluateLoadFromSignals]);
+
+  const recordSchedulingFailure = useCallback((reason) => {
+    const now = performance.now();
+    loadSignalsRef.current.schedulingFailures.push({ ts: now, reason });
+    recordViolationEvent('scheduling_failure', reason);
+  }, [recordViolationEvent]);
+
+  const recordSuccessAction = useCallback(() => {
+    const now = performance.now();
+    loadSignalsRef.current.lastSuccessTs = now;
+    if (computeActiveConflicts().length === 0 && !loadSignalsRef.current.successStreakStart) {
+      loadSignalsRef.current.successStreakStart = now;
+    }
+    evaluateLoadFromSignals('success');
+  }, [computeActiveConflicts, evaluateLoadFromSignals]);
 
   useEffect(() => {
     setFlights(generateFlights());
@@ -183,12 +363,33 @@ const Task3 = () => {
     setSimulationTask(3);
   }, []);
 
-  const totalCost = (selectedOutboundFlight?.price || 0) + 
-                   (selectedReturnFlight?.price || 0) + 
-                   (selectedHotel?.totalPrice || 0) + 
-                   (selectedTransport?.price || 0);
+  useEffect(() => {
+    if (prevBudgetRef.current === null) {
+      prevBudgetRef.current = remainingBudget;
+    }
+  }, [remainingBudget]);
 
-  const remainingBudget = 1380 - totalCost; // Changed to $1,380
+  useEffect(() => {
+    if (prevBudgetRef.current === null) return;
+    if (remainingBudget < 0 && prevBudgetRef.current >= 0) {
+      recordViolationEvent('budget_overrun', { remainingBudget });
+    }
+    if (remainingBudget >= 0 && prevBudgetRef.current < 0) {
+      loadSignalsRef.current.lastResolutionTs = performance.now();
+    }
+    prevBudgetRef.current = remainingBudget;
+    evaluateLoadFromSignals('budget_change');
+  }, [evaluateLoadFromSignals, recordViolationEvent, remainingBudget]);
+
+  useEffect(() => {
+    evaluateLoadFromSignals('init');
+    const intervalId = setInterval(() => evaluateLoadFromSignals('interval'), 1000);
+    return () => clearInterval(intervalId);
+  }, [evaluateLoadFromSignals]);
+
+  useEffect(() => {
+    evaluateLoadFromSignals('state_change');
+  }, [evaluateLoadFromSignals, meetings, selectedHotel, selectedOutboundFlight, selectedReturnFlight, selectedTransport]);
 
   const handleOutboundFlightSelect = (flight) => {
     setSelectedOutboundFlight(flight);
@@ -199,6 +400,11 @@ const Task3 = () => {
     });
     boostSimulationActivity(0.25);
     try { task3Logger.logFlightSelection(flight, 'outbound'); } catch (e) { /* ignore */ }
+    if (flight.arrivalTime.getHours() >= 15) {
+      recordViolationEvent('flight_constraint', 'outbound_arrival_after_15');
+    } else {
+      recordSuccessAction();
+    }
   };
 
   const handleReturnFlightSelect = (flight) => {
@@ -210,6 +416,11 @@ const Task3 = () => {
     });
     try { task3Logger.logFlightSelection(flight, 'return'); } catch (e) { /* ignore */ }
     boostSimulationActivity(0.25);
+    if (flight.departureTime.getHours() < 12) {
+      recordViolationEvent('flight_constraint', 'return_departure_before_12');
+    } else {
+      recordSuccessAction();
+    }
   };
 
   const handleHotelSelect = (hotel) => {
@@ -221,6 +432,11 @@ const Task3 = () => {
     });
     try { task3Logger.logHotelSelection(hotel); } catch (e) { /* ignore */ }
     boostSimulationActivity(0.3);
+    if (hotel.distance > 5 || hotel.stars < 3) {
+      recordViolationEvent('hotel_constraint', hotel.distance > 5 ? 'distance_over_5km' : 'under_3_stars');
+    } else {
+      recordSuccessAction();
+    }
   };
 
   const handleTransportSelect = (transport) => {
@@ -231,6 +447,7 @@ const Task3 = () => {
     });
     try { task3Logger.logTransportSelection(transport); } catch (e) { /* ignore */ }
     boostSimulationActivity(0.2);
+    recordSuccessAction();
   };
 
   // Hover handlers for flights/hotels/transport
@@ -344,6 +561,7 @@ const Task3 = () => {
       boostSimulationActivity(0.25);
       // remove any prior validationErrors related to this meeting
       setValidationErrors(prev => prev.filter(msg => typeof msg === 'string' ? !msg.includes(meetingId) : true));
+      recordSuccessAction();
     } else {
       // Log failed attempt
       log('meeting_schedule_attempt_failed', { meetingId, day, hour, reason });
@@ -352,6 +570,7 @@ const Task3 = () => {
       // show error to user by appending to validationErrors with meeting id so we can remove later
       setValidationErrors(prev => [...prev, `Failed to place meeting ${meetingId}: ${reason}`]);
       boostSimulationActivity(0.15);
+      recordSchedulingFailure(reason);
     }
   };
 
@@ -489,6 +708,17 @@ const Task3 = () => {
         errors.forEach(() => task3Logger.incrementError());
       } catch (e) { /* ignore */ }
     }
+
+    const signature = errors.join('|');
+    if (errors.length > 0 && signature !== lastValidationSignatureRef.current) {
+      recordViolationEvent('validation_conflict', { count: errors.length, signature });
+      lastValidationSignatureRef.current = signature;
+    }
+    if (errors.length === 0) {
+      lastValidationSignatureRef.current = '';
+      recordSuccessAction();
+    }
+
     return errors.length === 0;
   };
 
@@ -582,6 +812,11 @@ const Task3 = () => {
     log('adaptive_guided_validation', { success, loadState });
   };
 
+  const isHighLoad = loadState === 'HIGH';
+  const uiLoadState = isHighLoad ? 'High' : 'Medium';
+  const loadTitle = loadState === 'HIGH' ? 'Resolving constraint conflicts' : 'Coordinating trip plan';
+  const loadMessage = loadState === 'HIGH' ? HIGH_EXPLANATION : MEDIUM_EXPLANATION;
+
   if (isCompleted) {
     return (
       <PageContainer>
@@ -604,10 +839,10 @@ const Task3 = () => {
     <PageContainer>
       <PageTitle>Plan Your Business Trip to Berlin</PageTitle>
 
-      <AdaptiveNotice $load={loadState}>
+      <AdaptiveNotice $load={uiLoadState}>
         <NoticeHeader>
           <span>{loadTitle}</span>
-          <span style={{ fontSize: '0.85rem', color: '#475569' }}>{loadState}</span>
+          <span style={{ fontSize: '0.85rem', color: '#475569' }}>{uiLoadState}</span>
         </NoticeHeader>
         <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
         {/* insights removed due to missing cognitiveLoadHints */}

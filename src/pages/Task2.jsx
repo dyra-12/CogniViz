@@ -154,6 +154,34 @@ const ShowAllButton = styled.button`
   font-weight: 600;
 `;
 
+const AdaptiveHint = styled.div`
+  border-radius: ${props => props.theme.borderRadius.lg};
+  padding: ${props => props.theme.spacing[4]};
+  background: ${props => props.theme.colors.gray100};
+  border: 1px dashed ${props => props.theme.colors.gray300};
+  display: flex;
+  flex-direction: column;
+  gap: ${props => props.theme.spacing[2]};
+`;
+
+const HintTitle = styled.span`
+  font-weight: 700;
+  color: ${props => props.theme.colors.gray800};
+`;
+
+const ExplorationModeBanner = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing[3]};
+  padding: ${props => props.theme.spacing[3]} ${props => props.theme.spacing[4]};
+  margin-bottom: ${props => props.theme.spacing[4]};
+  background: ${props => props.theme.colors.gray100};
+  border: 1px solid ${props => props.theme.colors.gray200};
+  border-radius: ${props => props.theme.borderRadius.lg};
+  color: ${props => props.theme.colors.gray800};
+  font-weight: 600;
+`;
+
 const Container = styled.div`
   max-width: 500px;
   margin: 2rem auto;
@@ -184,6 +212,106 @@ const Sidebar = styled.div`
     position: relative;
     top: 0;
     max-height: none;
+  }
+`;
+
+const CompareOverlay = styled.div`
+  position: fixed;
+  right: clamp(16px, 2vw, 28px);
+  bottom: clamp(16px, 3vh, 32px);
+  z-index: 20;
+  width: min(620px, calc(100% - 32px));
+  background: ${props => props.theme.colors.white};
+  border: 1px solid ${props => props.theme.colors.gray200};
+  box-shadow: ${props => props.theme.shadows.lg};
+  border-radius: ${props => props.theme.borderRadius.xl};
+  padding: ${props => props.theme.spacing[4]};
+  opacity: ${props => props.$visible ? 1 : 0};
+  transform: translateY(${props => props.$visible ? '0' : '12px'});
+  pointer-events: ${props => props.$visible ? 'auto' : 'none'};
+  transition: opacity 0.35s ease, transform 0.35s ease;
+`;
+
+const OverlayHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${props => props.theme.spacing[3]};
+  margin-bottom: ${props => props.theme.spacing[3]};
+`;
+
+const OverlayTitle = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${props => props.theme.spacing[1]};
+`;
+
+const OverlayHeading = styled.span`
+  font-weight: 700;
+  color: ${props => props.theme.colors.gray800};
+  font-size: ${props => props.theme.fontSizes.md};
+`;
+
+const OverlaySubtext = styled.span`
+  font-size: ${props => props.theme.fontSizes.sm};
+  color: ${props => props.theme.colors.gray600};
+`;
+
+const OverlayDismiss = styled.button`
+  border: 1px solid ${props => props.theme.colors.gray300};
+  background: ${props => props.theme.colors.gray50};
+  color: ${props => props.theme.colors.gray700};
+  border-radius: ${props => props.theme.borderRadius.md};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
+  font-weight: 600;
+  cursor: pointer;
+`;
+
+const OverlayContent = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: ${props => props.theme.spacing[3]};
+`;
+
+const OverlayProduct = styled.div`
+  border: 1px solid ${props => props.theme.colors.gray200};
+  border-radius: ${props => props.theme.borderRadius.lg};
+  padding: ${props => props.theme.spacing[3]};
+  background: ${props => props.theme.colors.gray50};
+  box-shadow: inset 0 1px 0 ${props => props.theme.colors.gray100};
+`;
+
+const OverlayLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing[1]};
+  padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[2]};
+  border-radius: 999px;
+  background: ${props => props.theme.colors.primary}10;
+  color: ${props => props.theme.colors.primary};
+  font-size: ${props => props.theme.fontSizes.xs};
+  font-weight: 700;
+  letter-spacing: 0.2px;
+`;
+
+const OverlayName = styled.div`
+  margin-top: ${props => props.theme.spacing[2]};
+  font-weight: 700;
+  color: ${props => props.theme.colors.gray800};
+  line-height: 1.3;
+`;
+
+const OverlayRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: ${props => props.theme.spacing[2]};
+  font-size: ${props => props.theme.fontSizes.sm};
+  color: ${props => props.theme.colors.gray700};
+
+  strong {
+    color: ${props => props.theme.colors.gray900};
+    font-weight: 700;
   }
 `;
 
@@ -219,6 +347,17 @@ const Task2 = () => {
   const [checkoutStep, setCheckoutStep] = useState('browsing');
   const [presetApplied, setPresetApplied] = useState(false);
   const [showFullResults, setShowFullResults] = useState(true);
+  const [productInteractionCounts, setProductInteractionCounts] = useState({});
+  const [attributeFocusCounts, setAttributeFocusCounts] = useState({});
+  const [loadSignals, setLoadSignals] = useState({
+    decisionUncertainty: 0,
+    explorationBreadth: 0,
+    mediumSustained: false,
+  });
+  const [compareOverlayVisible, setCompareOverlayVisible] = useState(false);
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const mediumStartRef = useRef(null);
+  const overlayHideTimeoutRef = useRef(null);
 
   // Exploration metrics (local heuristic for Task 2 only)
   const metricsRef = useRef({
@@ -236,6 +375,23 @@ const Task2 = () => {
   });
 
   const ACTION_WINDOW_MS = 30000;
+
+  const trackProductInteraction = (productId, weight = 1) => {
+    if (!productId) return;
+    setProductInteractionCounts(prev => {
+      const next = { ...prev };
+      next[productId] = (next[productId] || 0) + weight;
+      return next;
+    });
+  };
+
+  const recordAttributeInteraction = (attributeKey) => {
+    if (!attributeKey) return;
+    setAttributeFocusCounts(prev => ({
+      ...prev,
+      [attributeKey]: (prev[attributeKey] || 0) + 1,
+    }));
+  };
 
   const recordAction = () => {
     const now = performance.now();
@@ -261,6 +417,24 @@ const Task2 = () => {
       return decisive ? 'LOW' : 'MEDIUM';
     })();
     setLoadState(loadLevel);
+
+    if (loadLevel === 'MEDIUM') {
+      if (!mediumStartRef.current) {
+        mediumStartRef.current = now;
+      }
+    } else {
+      mediumStartRef.current = null;
+    }
+
+    const decisionUncertaintyScore = loadLevel === 'MEDIUM' ? Math.min(1, m.hoverOscillations / 3) : 0;
+    const explorationBreadthScore = loadLevel === 'MEDIUM' ? Math.min(1, (m.uniqueProducts.size + m.uniqueFilters.size) / 6) : 0;
+    const sustainedMedium = loadLevel === 'MEDIUM' && mediumStartRef.current && (now - mediumStartRef.current >= 5000);
+
+    setLoadSignals({
+      decisionUncertainty: decisionUncertaintyScore,
+      explorationBreadth: explorationBreadthScore,
+      mediumSustained: !!sustainedMedium,
+    });
 
     const topFactors = loadLevel === 'MEDIUM'
       ? ['Decision Uncertainty', 'Exploration Breadth', 'Multitasking Load']
@@ -356,6 +530,16 @@ const Task2 = () => {
     if (!filterAction) {
       filterAction = (filterType === 'brands' || filterType === 'rams') ? 'checkbox_click' : (filterType === 'minPrice' || filterType === 'maxPrice') ? 'slider_drag' : 'dropdown_select';
     }
+    const attributeMap = {
+      minPrice: 'price',
+      maxPrice: 'price',
+      minRating: 'rating',
+      brands: 'brand',
+      rams: 'ram',
+      inStockOnly: 'availability',
+      sortBy: 'sort'
+    };
+    recordAttributeInteraction(attributeMap[filterType]);
     if (filterType === 'brands' || filterType === 'rams') {
       newValue = isChecked 
         ? [...filters[filterType], value]
@@ -417,6 +601,7 @@ const Task2 = () => {
 
   const handleSortChange = (e) => {
     const newSort = e.target.value;
+    recordAttributeInteraction('sort');
     log('sort_apply', { sortBy: newSort, previousSort: filters.sortBy });
     setFilters(prev => ({ ...prev, sortBy: newSort }));
     boostSimulationActivity(0.1);
@@ -424,6 +609,7 @@ const Task2 = () => {
 
   const handleProductClick = (product) => {
     setSelectedProduct(product);
+    trackProductInteraction(product.id, 2);
     metricsRef.current.decisionMade = true;
     metricsRef.current.timeToDecisionMs = performance.now() - metricsRef.current.startTs;
     recordAction();
@@ -456,6 +642,7 @@ const Task2 = () => {
       return;
     }
     setSelectedProduct(product);
+    trackProductInteraction(product.id, 2);
     metricsRef.current.decisionMade = true;
     metricsRef.current.timeToDecisionMs = performance.now() - metricsRef.current.startTs;
     recordAction();
@@ -512,6 +699,72 @@ const Task2 = () => {
     });
     boostSimulationActivity(0.4);
     completeCurrentTask();
+  };
+
+  const attributeEmphasisKey = useMemo(() => {
+    if (!loadSignals.mediumSustained) return null;
+    const emphasisCandidates = ['price', 'rating'];
+    const entries = Object.entries(attributeFocusCounts).filter(([key]) => emphasisCandidates.includes(key));
+    if (entries.length === 0) return null;
+    const [key, count] = [...entries].sort((a, b) => b[1] - a[1])[0];
+    return count >= 3 ? key : null;
+  }, [attributeFocusCounts, loadSignals.mediumSustained]);
+
+  const adaptationActive = useMemo(() => (
+    loadState === 'MEDIUM'
+      && loadSignals.mediumSustained
+      && (loadSignals.decisionUncertainty >= 0.35 || loadSignals.explorationBreadth >= 0.55)
+  ), [loadSignals, loadState]);
+
+  const comparisonHighlightActive = adaptationActive;
+
+  const topComparedProducts = useMemo(() => {
+    const entries = Object.entries(productInteractionCounts);
+    if (entries.length === 0) return [];
+    return [...entries].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => id);
+  }, [productInteractionCounts]);
+
+  const comparedProductsInView = useMemo(() => {
+    if (!comparisonHighlightActive) return [];
+    const inView = filteredProducts.filter(product => topComparedProducts.includes(product.id));
+    return [...inView].sort((a, b) => (productInteractionCounts[b.id] || 0) - (productInteractionCounts[a.id] || 0)).slice(0, 3);
+  }, [comparisonHighlightActive, filteredProducts, productInteractionCounts, topComparedProducts]);
+
+  const overlayProducts = useMemo(() => comparedProductsInView.slice(0, 2), [comparedProductsInView]);
+
+  useEffect(() => {
+    if (overlayHideTimeoutRef.current) {
+      clearTimeout(overlayHideTimeoutRef.current);
+    }
+
+    if (adaptationActive && overlayProducts.length === 2 && !overlayDismissed) {
+      setCompareOverlayVisible(true);
+    } else {
+      overlayHideTimeoutRef.current = setTimeout(() => {
+        setCompareOverlayVisible(false);
+      }, 900);
+    }
+
+    return () => {
+      if (overlayHideTimeoutRef.current) {
+        clearTimeout(overlayHideTimeoutRef.current);
+      }
+    };
+  }, [adaptationActive, overlayProducts, overlayDismissed]);
+
+  useEffect(() => {
+    if (adaptationActive) return undefined;
+    const resetTimer = setTimeout(() => setOverlayDismissed(false), 1200);
+    return () => clearTimeout(resetTimer);
+  }, [adaptationActive]);
+
+  const attributeLabel = {
+    price: 'price',
+    rating: 'rating',
+    brand: 'brand',
+    ram: 'memory',
+    availability: 'availability',
+    sort: 'sorting'
   };
 
   const displayedProducts = showFullResults ? filteredProducts : filteredProducts.slice(0, 6);
@@ -575,6 +828,13 @@ const Task2 = () => {
           </QuickActions>
         )}
       </AdaptiveNotice>
+
+      {loadSignals.mediumSustained && (
+        <ExplorationModeBanner>
+          <span role="img" aria-label="exploration">🧭</span>
+          <span>Exploration mode: comparing multiple options</span>
+        </ExplorationModeBanner>
+      )}
       
       <ContentLayout>
         {/* Left Sidebar - Filters */}
@@ -605,6 +865,20 @@ const Task2 = () => {
             </SortSelect>
           </ResultsInfo>
 
+          {comparisonHighlightActive && (
+            <AdaptiveHint>
+              <HintTitle>Comparison assist</HintTitle>
+              <span>Multiple options are being compared. Highlighting key candidates to support decision-making.</span>
+            </AdaptiveHint>
+          )}
+
+          {attributeEmphasisKey && loadSignals.mediumSustained && (
+            <AdaptiveHint>
+              <HintTitle>Attribute emphasis</HintTitle>
+              <span>Emphasizing frequently referenced {attributeLabel[attributeEmphasisKey] || 'attributes'} to support comparison.</span>
+            </AdaptiveHint>
+          )}
+
           <ProductsGrid>
             {displayedProducts.map(product => (
               <ProductCard
@@ -624,11 +898,15 @@ const Task2 = () => {
                   }
                   metricsRef.current.lastHoverProduct = product.id;
                   metricsRef.current.uniqueProducts.add(product.id);
+                  trackProductInteraction(product.id, 1);
                   recordAction();
                   updateLoadMetrics();
                   logger.logProductHoverStart(product.id);
                 }}
                 onProductHoverEnd={() => logger.logProductHoverEnd(product.id)}
+                highlighted={comparisonHighlightActive && comparedProductsInView.some(item => item.id === product.id)}
+                compareLabel={comparisonHighlightActive && comparedProductsInView.some(item => item.id === product.id) ? 'Comparing' : null}
+                emphasizedAttribute={attributeEmphasisKey}
               />
             ))}
           </ProductsGrid>
@@ -667,6 +945,49 @@ const Task2 = () => {
           />
         </Sidebar>
       </ContentLayout>
+
+      <CompareOverlay
+        $visible={compareOverlayVisible && overlayProducts.length === 2 && !overlayDismissed}
+        aria-live="polite"
+      >
+        <OverlayHeader>
+          <OverlayTitle>
+            <OverlayHeading>Comparison assist</OverlayHeading>
+            <OverlaySubtext>Comparison assist: presenting key differences between frequently considered options.</OverlaySubtext>
+          </OverlayTitle>
+          <OverlayDismiss
+            type="button"
+            onClick={() => {
+              setCompareOverlayVisible(false);
+              setOverlayDismissed(true);
+            }}
+            aria-label="Dismiss comparison overlay"
+          >
+            Dismiss
+          </OverlayDismiss>
+        </OverlayHeader>
+
+        <OverlayContent>
+          {overlayProducts.map(product => (
+            <OverlayProduct key={product.id}>
+              <OverlayLabel>In focus</OverlayLabel>
+              <OverlayName>{product.name}</OverlayName>
+              <OverlayRow>
+                <span>Price</span>
+                <strong>${product.price}</strong>
+              </OverlayRow>
+              <OverlayRow>
+                <span>Rating</span>
+                <strong>{product.rating} ★ ({product.reviewCount})</strong>
+              </OverlayRow>
+              <OverlayRow>
+                <span>Processor</span>
+                <strong>{product.cpu}</strong>
+              </OverlayRow>
+            </OverlayProduct>
+          ))}
+        </OverlayContent>
+      </CompareOverlay>
     </PageContainer>
   );
 };

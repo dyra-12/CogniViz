@@ -19,19 +19,22 @@ const DetailsPanel = styled.div`
 `;
 
 const Card = styled.div`
-  background: ${props => props.theme.colors.white};
+  background: ${props => props.$highlighted ? `${props.theme.colors.primary}05` : props.theme.colors.white};
   border-radius: ${props => props.theme.borderRadius.xl};
   overflow: hidden;
-  box-shadow: ${props => props.theme.shadows.md};
-  transition: all 0.3s ease;
+  box-shadow: ${props => props.$highlighted ? `${props.theme.shadows.lg}, 0 6px 18px -10px ${props.theme.colors.primary}80` : props.theme.shadows.md};
+  outline: ${props => props.$highlighted ? `2px solid ${props.theme.colors.primary}40` : 'none'};
+  transition: all 0.28s ease;
   height: 100%;
   display: flex;
   flex-direction: column;
   cursor: pointer;
+  position: relative;
+  transform: ${props => props.$highlighted ? 'translateY(-8px)' : 'none'};
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: ${props => props.theme.shadows.lg};
+    transform: ${props => props.$highlighted ? 'translateY(-10px)' : 'translateY(-4px)'};
+    box-shadow: ${props => props.$highlighted ? `${props.theme.shadows.lg}, 0 8px 22px -10px ${props.theme.colors.primary}99` : props.theme.shadows.lg};
   }
 `;
 
@@ -92,6 +95,11 @@ const PriceContainer = styled.div`
   align-items: center;
   gap: ${props => props.theme.spacing[3]};
   margin-bottom: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  padding: ${props => props.$emphasized ? `${props.theme.spacing[2]} ${props.theme.spacing[3]}` : '0'};
+  background: ${props => props.$emphasized ? `${props.theme.colors.primary}08` : 'transparent'};
+  border: ${props => props.$emphasized ? `1px solid ${props.theme.colors.primary}30` : 'none'};
+  opacity: ${props => props.$subtle ? 0.9 : 1};
 `;
 
 const CurrentPrice = styled.span`
@@ -111,6 +119,26 @@ const RatingContainer = styled.div`
   align-items: center;
   gap: ${props => props.theme.spacing[2]};
   margin-bottom: ${props => props.theme.spacing[4]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  padding: ${props => props.$emphasized ? `${props.theme.spacing[1]} ${props.theme.spacing[2]}` : '0'};
+  background: ${props => props.$emphasized ? `${props.theme.colors.warning}10` : 'transparent'};
+  border: ${props => props.$emphasized ? `1px solid ${props.theme.colors.warning}30` : 'none'};
+  opacity: ${props => props.$subtle ? 0.9 : 1};
+`;
+
+const CompareAffordance = styled.span`
+  position: absolute;
+  top: ${props => props.theme.spacing[3]};
+  left: ${props => props.theme.spacing[3]};
+  background: ${props => props.theme.colors.white};
+  color: ${props => props.theme.colors.primary};
+  border: 1px solid ${props => props.theme.colors.primary}50;
+  border-radius: 999px;
+  padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[2]};
+  font-size: ${props => props.theme.fontSizes.xs};
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  box-shadow: ${props => props.theme.shadows.md};
 `;
 
 const Stars = styled.div`
@@ -129,7 +157,7 @@ const RatingText = styled.span`
 `;
 
 
-const ProductCard = ({ product, onProductClick, onAddToCart, onProductHoverStart, onProductHoverEnd }) => {
+const ProductCard = ({ product, onProductClick, onAddToCart, onProductHoverStart, onProductHoverEnd, highlighted = false, compareLabel = null, emphasizedAttribute = null }) => {
   const [showDetails, setShowDetails] = useState(false);
   const renderStars = (rating) =>
     Array.from({ length: 5 }, (_, index) => (
@@ -170,7 +198,8 @@ const ProductCard = ({ product, onProductClick, onAddToCart, onProductHoverStart
 
   return (
     <div style={{ position: 'relative', height: '100%' }} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <Card onClick={handleClick}>
+      <Card onClick={handleClick} $highlighted={highlighted}>
+        {compareLabel && <CompareAffordance>{compareLabel}</CompareAffordance>}
         <ImageContainer>
           <ProductImage src={product.imageUrl} alt={product.name} />
           <StockBadge inStock={product.inStock}>
@@ -182,14 +211,14 @@ const ProductCard = ({ product, onProductClick, onAddToCart, onProductHoverStart
           <Category>{product.category}</Category>
           <ProductName>{product.name}</ProductName>
 
-          <PriceContainer>
+          <PriceContainer $emphasized={emphasizedAttribute === 'price'} $subtle={emphasizedAttribute === 'rating'}>
             <CurrentPrice>${product.price}</CurrentPrice>
             {product.originalPrice > product.price && (
               <OriginalPrice>${product.originalPrice}</OriginalPrice>
             )}
           </PriceContainer>
 
-          <RatingContainer>
+          <RatingContainer $emphasized={emphasizedAttribute === 'rating'} $subtle={emphasizedAttribute === 'price'}>
             <Stars>{renderStars(product.rating)}</Stars>
             <RatingText>({product.reviewCount})</RatingText>
           </RatingContainer>

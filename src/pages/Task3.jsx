@@ -139,7 +139,38 @@ const QuickActionButton = styled.button`
 `;
 
 const MEDIUM_EXPLANATION = 'Moderate cognitive load detected during initial trip planning.';
-const HIGH_EXPLANATION = 'High cognitive load detected due to repeated scheduling conflicts and constraint resolution effort.';
+
+const describeActiveConstraints = (conflicts = []) => {
+  const map = {
+    budget: 'budget overrun',
+    outbound_time: 'late inbound arrival',
+    return_time: 'early return departure',
+    hotel_rules: 'hotel quality/distance limits',
+    meeting_overlap: 'overlapping meetings',
+    meeting_time_range: 'meetings outside allowed time ranges',
+    meeting_wrong_day: 'meetings on blocked days',
+    meeting_must_follow: 'ordering conflicts',
+    meeting_must_precede: 'ordering conflicts',
+  };
+  const phrases = conflicts
+    .map(c => map[c] || c.replace('meeting_', 'meeting constraint '))
+    .filter(Boolean);
+  if (phrases.length === 0) return 'active constraints';
+  const unique = [...new Set(phrases)];
+  return unique.slice(0, 3).join(' and ');
+};
+
+const buildHighExplanation = (conflicts, flags) => {
+  const constraintText = describeActiveConstraints(conflicts);
+  const pressures = [];
+  if (flags.repeatedViolations) pressures.push('recurring constraint violations');
+  if (flags.failedAdjustments) pressures.push('repeated placement retries');
+  if (flags.dragReverts) pressures.push('repeated drag-and-drop reversions');
+  if (flags.idleAfterFailure) pressures.push('idle time following failed actions');
+  if (flags.slowRecovery) pressures.push('slow conflict resolution');
+  const pressureText = pressures.length ? ` with ${pressures.join(' and ')}` : '';
+  return `High cognitive load detected due to ${constraintText}${pressureText}.`;
+};
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
@@ -147,19 +178,22 @@ const Task3 = () => {
   const { completeCurrentTask } = useTaskProgress();
   const { log } = useLogger();
   const task3Logger = useTask3Logger();
-  const { updateState: updateCognitiveLoad } = useCognitiveLoad();
+  const { updateState: updateCognitiveLoad, explanation: loadExplanation } = useCognitiveLoad();
 
   const [loadState, setLoadState] = useState('MEDIUM');
   const loadSignalsRef = useRef({
     violationEvents: [],
     schedulingFailures: [],
+    successEvents: [],
     lastViolationTs: null,
+    lastFailureTs: null,
     conflictStartTs: null,
     lastResolutionTs: null,
     lastSuccessTs: null,
     successStreakStart: null,
     cumulativeConflictMs: 0,
     lastEvalTs: performance.now(),
+    recoveryStableStartTs: null,
     currentLoad: 'MEDIUM'
   });
   const prevBudgetRef = useRef(null);
@@ -238,19 +272,18 @@ const Task3 = () => {
     return conflicts;
   }, [computeMeetingConflicts, remainingBudget, selectedHotel, selectedOutboundFlight, selectedReturnFlight]);
 
-  const pushLoadToContext = useCallback((level, metrics) => {
-    const topFactors = level === 'HIGH'
-      ? ['Scheduling Difficulty ↑', 'Constraint Violations ↑', 'Recovery Efficiency ↓', 'Resolution Effort ↑']
-      : ['Planning Activity', 'Constraint Awareness'];
-    const explanation = level === 'HIGH' ? HIGH_EXPLANATION : MEDIUM_EXPLANATION;
+  const pushLoadToContext = useCallback((level, metrics, explanation, topFactorsOverride) => {
     const upScore = (v) => clamp01(0.5 + 0.5 * clamp01(v));
     const downScore = (v) => clamp01(0.49 * (1 - clamp01(v)));
+    const topFactors = topFactorsOverride || (level === 'HIGH'
+      ? ['Constraint Violations', 'Failed Adjustments', 'Recovery Drag', 'Post-Failure Stall']
+      : ['Planning Activity', 'Constraint Awareness']);
     const metricsPayload = level === 'HIGH'
       ? {
-          'Scheduling Difficulty ↑': upScore(metrics.schedulingPressure),
-          'Constraint Violations ↑': upScore(metrics.violationPressure),
-          'Recovery Efficiency ↓': downScore(metrics.recoveryLag),
-          'Resolution Effort ↑': upScore(metrics.resolutionEffort),
+          'Constraint Violations': upScore(metrics.violationPressure),
+          'Failed Adjustments': upScore(metrics.schedulingPressure),
+          'Recovery Drag': upScore(metrics.recoveryLag || metrics.resolutionEffort),
+          'Post-Failure Stall': upScore(metrics.idleStall || 0),
         }
       : {
           'Planning Activity': metrics.planningActivity,
@@ -261,7 +294,7 @@ const Task3 = () => {
       loadLevel: level,
       metrics: metricsPayload,
       topFactors,
-      explanation,
+      explanation: explanation || (level === 'HIGH' ? buildHighExplanation([], {}) : MEDIUM_EXPLANATION),
     });
   }, [updateCognitiveLoad]);
 
@@ -272,6 +305,7 @@ const Task3 = () => {
 
     signals.violationEvents = signals.violationEvents.filter(ev => now - ev.ts <= windowMs);
     signals.schedulingFailures = signals.schedulingFailures.filter(ev => now - ev.ts <= windowMs);
+    signals.successEvents = signals.successEvents.filter(ev => now - ev.ts <= windowMs);
 
     const activeConflicts = computeActiveConflicts();
     const hasConflicts = activeConflicts.length > 0;
@@ -290,15 +324,38 @@ const Task3 = () => {
     const violationsCount = signals.violationEvents.length;
     const schedulingFailuresCount = signals.schedulingFailures.length;
     const recoveryMs = signals.conflictStartTs ? now - signals.conflictStartTs : 0;
-    const shouldHigh = violationsCount >= 2 || schedulingFailuresCount >= 3 || recoveryMs > 6000;
 
+    const stableNoFailures = !hasConflicts && violationsCount === 0 && schedulingFailuresCount === 0;
+    if (!stableNoFailures) {
+      signals.recoveryStableStartTs = null;
+    } else if (!signals.recoveryStableStartTs) {
+      signals.recoveryStableStartTs = now;
+    }
+
+    const repeatedViolations = violationsCount >= 2;
+    const failedAdjustments = schedulingFailuresCount >= 2;
+    const dragReverts = schedulingFailuresCount >= 3;
+    const slowRecovery = recoveryMs > 8000 || signals.cumulativeConflictMs > 18000;
+    const idleAfterFailure = hasConflicts && signals.lastViolationTs && (!signals.lastSuccessTs || signals.lastSuccessTs < signals.lastViolationTs) && (now - signals.lastViolationTs > 8000);
+    const constraintPressure = hasConflicts || repeatedViolations || failedAdjustments;
+
+    const successesAfterLastViolation = signals.successEvents.filter(ev => !signals.lastViolationTs || ev.ts > signals.lastViolationTs);
     let nextLoad = signals.currentLoad || 'MEDIUM';
+
     if (nextLoad === 'HIGH') {
-      const noConflicts = activeConflicts.length === 0;
-      const optionA = noConflicts && signals.lastResolutionTs && now - signals.lastResolutionTs >= 10000 && (!signals.lastViolationTs || now - signals.lastViolationTs >= 10000);
-      const optionB = noConflicts && signals.successStreakStart && (!signals.lastViolationTs || now - signals.lastViolationTs >= 8000) && (now - signals.successStreakStart >= 8000);
-      nextLoad = (optionA || optionB) ? 'MEDIUM' : 'HIGH';
+      const noNewViolations = !signals.lastViolationTs || (signals.recoveryStableStartTs && signals.lastViolationTs < signals.recoveryStableStartTs);
+      const noNewFailures = !signals.lastFailureTs || (signals.recoveryStableStartTs && signals.lastFailureTs < signals.recoveryStableStartTs);
+      const stabilizationWindowMs = 5000;
+      const stableWindowMet = stableNoFailures && signals.recoveryStableStartTs && (now - signals.recoveryStableStartTs >= stabilizationWindowMs) && noNewViolations && noNewFailures;
+      nextLoad = stableWindowMet ? 'MEDIUM' : 'HIGH';
     } else {
+      const shouldHigh = constraintPressure && (
+        (hasConflicts && (repeatedViolations || failedAdjustments || dragReverts || slowRecovery || idleAfterFailure)) ||
+        (repeatedViolations && failedAdjustments) ||
+        dragReverts ||
+        slowRecovery ||
+        idleAfterFailure
+      );
       nextLoad = shouldHigh ? 'HIGH' : 'MEDIUM';
     }
 
@@ -308,21 +365,28 @@ const Task3 = () => {
     const metrics = {
       schedulingPressure: clamp01(schedulingFailuresCount / 3),
       violationPressure: clamp01(violationsCount / 3),
-      recoveryLag: clamp01(recoveryMs / 12000),
+      recoveryLag: clamp01(recoveryMs / 15000),
       resolutionEffort: clamp01(signals.cumulativeConflictMs / 20000),
       planningActivity: clamp01((meetings.filter(m => m.scheduled).length + (selectedOutboundFlight ? 1 : 0) + (selectedReturnFlight ? 1 : 0) + (selectedHotel ? 1 : 0) + (selectedTransport ? 1 : 0)) / 8),
-      constraintAwareness: clamp01((violationsCount + schedulingFailuresCount) / 4),
+      constraintAwareness: clamp01((violationsCount + schedulingFailuresCount) / 5),
+      idleStall: idleAfterFailure ? clamp01((now - (signals.lastViolationTs || now)) / 12000) : 0,
+      dragReverts: clamp01(schedulingFailuresCount / 4),
       activeConflictsCount: activeConflicts.length,
       source,
     };
 
-    pushLoadToContext(nextLoad, metrics);
+    const explanation = nextLoad === 'HIGH'
+      ? buildHighExplanation(activeConflicts, { repeatedViolations, failedAdjustments, dragReverts, idleAfterFailure, slowRecovery })
+      : MEDIUM_EXPLANATION;
+
+    pushLoadToContext(nextLoad, metrics, explanation);
   }, [computeActiveConflicts, meetings, pushLoadToContext, selectedHotel, selectedOutboundFlight, selectedReturnFlight, selectedTransport]);
 
   const recordViolationEvent = useCallback((type, detail = null) => {
     const now = performance.now();
     loadSignalsRef.current.violationEvents.push({ ts: now, type, detail });
     loadSignalsRef.current.lastViolationTs = now;
+    loadSignalsRef.current.lastActionTs = now;
     loadSignalsRef.current.successStreakStart = null;
     evaluateLoadFromSignals('violation');
   }, [evaluateLoadFromSignals]);
@@ -330,14 +394,21 @@ const Task3 = () => {
   const recordSchedulingFailure = useCallback((reason) => {
     const now = performance.now();
     loadSignalsRef.current.schedulingFailures.push({ ts: now, reason });
+    loadSignalsRef.current.lastFailureTs = now;
     recordViolationEvent('scheduling_failure', reason);
   }, [recordViolationEvent]);
 
   const recordSuccessAction = useCallback(() => {
     const now = performance.now();
     loadSignalsRef.current.lastSuccessTs = now;
-    if (computeActiveConflicts().length === 0 && !loadSignalsRef.current.successStreakStart) {
+    loadSignalsRef.current.lastActionTs = now;
+    loadSignalsRef.current.successEvents.push({ ts: now });
+    const conflictFree = computeActiveConflicts().length === 0;
+    if (conflictFree && !loadSignalsRef.current.successStreakStart) {
       loadSignalsRef.current.successStreakStart = now;
+    }
+    if (conflictFree && !loadSignalsRef.current.recoveryStableStartTs) {
+      loadSignalsRef.current.recoveryStableStartTs = now;
     }
     evaluateLoadFromSignals('success');
   }, [computeActiveConflicts, evaluateLoadFromSignals]);
@@ -815,7 +886,11 @@ const Task3 = () => {
   const isHighLoad = loadState === 'HIGH';
   const uiLoadState = isHighLoad ? 'High' : 'Medium';
   const loadTitle = loadState === 'HIGH' ? 'Resolving constraint conflicts' : 'Coordinating trip plan';
-  const loadMessage = loadState === 'HIGH' ? HIGH_EXPLANATION : MEDIUM_EXPLANATION;
+  const loadMessage = loadState === 'HIGH'
+    ? (loadExplanation && loadExplanation.toLowerCase().includes('high cognitive load')
+        ? loadExplanation
+        : 'High cognitive load detected while resolving constraint conflicts.')
+    : MEDIUM_EXPLANATION;
 
   if (isCompleted) {
     return (

@@ -174,33 +174,6 @@ const buildHighExplanation = (conflicts, flags) => {
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
-const ADAPTIVE_TRIGGER_WINDOW_MS = 5000;
-const ADAPTIVE_RECOVERY_MS = 5000;
-const COST_DELTA_WINDOW_MS = 8000;
-
-const determineAdaptiveDomain = (conflicts = [], lastViolationType = '') => {
-  if (!Array.isArray(conflicts)) return 'general';
-  if (conflicts.includes('budget') || lastViolationType === 'budget_overrun') {
-    return 'budget';
-  }
-  if (conflicts.some(tag => tag === 'outbound_time' || tag === 'return_time') || lastViolationType === 'flight_constraint') {
-    return 'flight';
-  }
-  if (conflicts.some(tag => tag.startsWith('meeting_')) || lastViolationType === 'scheduling_failure') {
-    return 'meeting';
-  }
-  return 'general';
-};
-
-const defaultAdaptiveState = {
-  active: false,
-  domain: null,
-  since: null,
-  focusTargets: [],
-  reasonFlags: {},
-  directives: [],
-};
-
 const Task3 = () => {
   const { completeCurrentTask } = useTaskProgress();
   const { log } = useLogger();
@@ -221,29 +194,37 @@ const Task3 = () => {
     cumulativeConflictMs: 0,
     lastEvalTs: performance.now(),
     recoveryStableStartTs: null,
-    currentLoad: 'MEDIUM',
-    lastViolationType: null,
-    interactionSwitches: [],
-    lastInteractionDomain: null,
+    currentLoad: 'MEDIUM'
+  });
+  const highLoadStartRef = useRef(null);
+  const lastInteractionRef = useRef('flight');
+  const [activeFlightSubtask, setActiveFlightSubtask] = useState('outbound');
+  const prevSelectionsRef = useRef({
+    outboundFlight: null,
+    returnFlight: null,
+    hotel: null,
+    transport: null,
   });
   const prevBudgetRef = useRef(null);
   const lastValidationSignatureRef = useRef('');
-  const adaptiveRef = useRef({
-    ...defaultAdaptiveState,
-    candidateSince: null,
-    pendingDomain: null,
+  const [adaptiveActive, setAdaptiveActive] = useState(false);
+  const [activeDomain, setActiveDomain] = useState(null);
+  const [meetingConflictDetails, setMeetingConflictDetails] = useState({
+    conflictsByMeeting: {},
+    conflictSlots: [],
+    focusedDays: [],
   });
-  const interactionGuardRef = useRef({ until: 0, lastDomain: null });
-  const [adaptiveState, setAdaptiveState] = useState(defaultAdaptiveState);
-  const [adaptiveFeedback, setAdaptiveFeedback] = useState(null);
-  const [costDeltas, setCostDeltas] = useState({});
+  const [costDeltas, setCostDeltas] = useState({
+    outboundFlight: 0,
+    returnFlight: 0,
+    hotel: 0,
+    transport: 0,
+  });
   
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
   const [transportOptions, setTransportOptions] = useState([]);
   const [meetings, setMeetings] = useState(initialMeetings);
-  const filteredOutboundFlights = useMemo(() => filterFlights(flights, 'outbound'), [flights]);
-  const filteredReturnFlights = useMemo(() => filterFlights(flights, 'return'), [flights]);
   
   const [selectedOutboundFlight, setSelectedOutboundFlight] = useState(null);
   const [selectedReturnFlight, setSelectedReturnFlight] = useState(null);
@@ -259,6 +240,12 @@ const Task3 = () => {
                    (selectedTransport?.price || 0);
 
   const remainingBudget = 1380 - totalCost; // Changed to $1,380
+
+  const costForSelection = useCallback((key, selection) => {
+    if (!selection) return 0;
+    if (key === 'hotel') return selection.totalPrice || 0;
+    return selection.price || 0;
+  }, []);
 
   const computeMeetingConflicts = useCallback(() => {
     const conflicts = [];
@@ -300,11 +287,82 @@ const Task3 = () => {
     return conflicts;
   }, [meetings]);
 
+  const detailedMeetingConflicts = useMemo(() => {
+    const conflictsByMeeting = {};
+    const conflictSlots = [];
+    const focusedDays = new Set();
+
+    const addConflict = (meetingId, type, message, day, hour) => {
+      if (!conflictsByMeeting[meetingId]) conflictsByMeeting[meetingId] = [];
+      conflictsByMeeting[meetingId].push({ type, message, day, hour });
+      if (typeof day === 'number') focusedDays.add(day);
+      if (typeof day === 'number' && typeof hour === 'number') {
+        conflictSlots.push({ day, hour, meetingId, types: [type], message });
+      }
+    };
+
+    meetings.forEach((meeting) => {
+      if (meeting.scheduled) {
+        const start = meeting.startTime;
+        const end = meeting.startTime + meeting.duration;
+        if (meeting.constraints.allowedDays && !meeting.constraints.allowedDays.includes(meeting.day)) {
+          addConflict(meeting.id, 'wrong_day', `${meeting.title} is on a blocked day`, meeting.day, start);
+        }
+        if (meeting.constraints.timeRange) {
+          if (start < meeting.constraints.timeRange.start || end > meeting.constraints.timeRange.end) {
+            addConflict(meeting.id, 'time_range', `${meeting.title} is outside its allowed time range`, meeting.day, start);
+          }
+        }
+        if (meeting.constraints.mustFollow) {
+          const followed = meetings.find(m => m.id === meeting.constraints.mustFollow);
+          if (!followed || !followed.scheduled || meeting.day < followed.day || (meeting.day === followed.day && start <= followed.startTime + followed.duration)) {
+            addConflict(meeting.id, 'must_follow', `${meeting.title} must be after ${followed?.title || 'its prerequisite'}`, meeting.day, start);
+          }
+        }
+        if (meeting.constraints.mustPrecede) {
+          const preceded = meetings.find(m => m.id === meeting.constraints.mustPrecede);
+          if (preceded && preceded.scheduled && (meeting.day > preceded.day || (meeting.day === preceded.day && end >= preceded.startTime))) {
+            addConflict(meeting.id, 'must_precede', `${meeting.title} must come before ${preceded.title}`, meeting.day, start);
+          }
+        }
+        if (meeting.constraints.cannotOverlapWith) {
+          meeting.constraints.cannotOverlapWith.forEach(otherId => {
+            const other = meetings.find(m => m.id === otherId);
+            if (other && other.scheduled && other.day === meeting.day) {
+              const otherEnd = other.startTime + other.duration;
+              if (!(end <= other.startTime || start >= otherEnd)) {
+                addConflict(meeting.id, 'overlap', `${meeting.title} overlaps with ${other.title}`, meeting.day, start);
+              }
+            }
+          });
+        }
+      } else {
+        if (meeting.constraints.mustFollow) {
+          addConflict(meeting.id, 'unscheduled_dependency', `${meeting.title} depends on another meeting first`);
+        }
+        if (meeting.constraints.mustPrecede) {
+          addConflict(meeting.id, 'unscheduled_dependency', `${meeting.title} needs placement before ${meeting.constraints.mustPrecede}`);
+        }
+      }
+    });
+
+    return {
+      conflictsByMeeting,
+      conflictSlots,
+      focusedDays: Array.from(focusedDays)
+    };
+  }, [meetings]);
+
   const computeActiveConflicts = useCallback(() => {
     const conflicts = [];
     if (remainingBudget < 0) conflicts.push('budget');
     if (selectedOutboundFlight && selectedOutboundFlight.arrivalTime.getHours() >= 15) conflicts.push('outbound_time');
-    if (selectedReturnFlight && selectedReturnFlight.departureTime.getHours() < 12) conflicts.push('return_time');
+    if (selectedReturnFlight) {
+      const arrivesNextDay = selectedReturnFlight.arrivalTime.getDate() !== selectedReturnFlight.departureTime.getDate();
+      const arrivalHour = selectedReturnFlight.arrivalTime.getHours();
+      const arrivalInWindow = arrivalHour >= 0 && arrivalHour < 12;
+      if (!arrivesNextDay || !arrivalInWindow) conflicts.push('return_time');
+    }
     if (selectedHotel && (selectedHotel.distance > 5 || selectedHotel.stars < 3)) conflicts.push('hotel_rules');
     const meetingConflicts = computeMeetingConflicts();
     if (meetingConflicts.length) {
@@ -313,180 +371,12 @@ const Task3 = () => {
     return conflicts;
   }, [computeMeetingConflicts, remainingBudget, selectedHotel, selectedOutboundFlight, selectedReturnFlight]);
 
-  const computeAdaptiveFocusTargets = useCallback((domain, conflicts) => {
-    if (domain === 'flight') {
-      const focus = ['flightSelection'];
-      if (conflicts.includes('outbound_time')) focus.push('outboundFlight');
-      if (conflicts.includes('return_time')) focus.push('returnFlight');
-      return [...new Set(focus)];
-    }
-    if (domain === 'meeting') {
-      const focus = ['meetingSchedule'];
-      const meetingTags = conflicts.filter(tag => tag.startsWith('meeting_'));
-      meetingTags.forEach(tag => focus.push(tag));
-      return [...new Set(focus)];
-    }
-    if (domain === 'budget') {
-      return ['budgetOverrun', 'flightSelection', 'hotelSelection', 'transportSelection'];
-    }
-    return [];
-  }, []);
-
-  const buildAdaptiveDirectives = useCallback((domain, conflicts, flags) => {
-    if (domain === 'flight') {
-      return [
-        'Resolve the highlighted flight constraint before switching tasks.',
-        flags.repeatedViolations ? 'Choose a flight that meets the time requirement to break the violation streak.' : 'Adjust the targeted flight until the time requirement is met.'
-      ];
-    }
-    if (domain === 'meeting') {
-      return [
-        'Fix the highlighted meeting conflicts before adding new meetings.',
-        flags.failedAdjustments ? 'Use the inline badges to satisfy ordering or overlap rules.' : 'Use the highlighted slots to realign meetings without overlaps.'
-      ];
-    }
-    if (domain === 'budget') {
-      return [
-        'Bring spending back under budget using the pinned summary before adjusting other items.',
-        flags.slowRecovery ? 'Target the largest cost contributors first to recover faster.' : 'Focus on the highlighted cost drivers to resolve the overrun.'
-      ];
-    }
-    return ['Resolve the highlighted constraint before moving on.'];
-  }, []);
-
-  const updateAdaptiveMode = useCallback((nextLoad, activeConflicts, flags, now, signals) => {
-    const candidate = adaptiveRef.current;
-    const domain = determineAdaptiveDomain(activeConflicts, signals.lastViolationType);
-    const triggersActive = Boolean(flags.repeatedViolations || flags.failedAdjustments || flags.slowRecovery || flags.highInteractionThrash || flags.dragReverts);
-
-    if (nextLoad === 'HIGH' && triggersActive) {
-      if (candidate.pendingDomain !== domain) {
-        candidate.pendingDomain = domain;
-        candidate.candidateSince = now;
-      }
-      if (!candidate.candidateSince) {
-        candidate.candidateSince = now;
-        candidate.pendingDomain = domain;
-      }
-      if (!candidate.active && candidate.candidateSince && (now - candidate.candidateSince >= ADAPTIVE_TRIGGER_WINDOW_MS)) {
-        const focusTargets = computeAdaptiveFocusTargets(domain, activeConflicts);
-        const directives = buildAdaptiveDirectives(domain, activeConflicts, flags);
-        candidate.active = true;
-        candidate.domain = domain;
-        candidate.since = now;
-        candidate.focusTargets = focusTargets;
-        candidate.reasonFlags = { ...flags };
-        candidate.directives = directives;
-        setAdaptiveState({
-          active: true,
-          domain,
-          since: now,
-          focusTargets,
-          reasonFlags: { ...flags },
-          directives,
-        });
-        setAdaptiveFeedback(null);
-      }
-      if (candidate.active && candidate.domain !== domain) {
-        const focusTargets = computeAdaptiveFocusTargets(domain, activeConflicts);
-        const directives = buildAdaptiveDirectives(domain, activeConflicts, flags);
-        candidate.domain = domain;
-        candidate.focusTargets = focusTargets;
-        candidate.reasonFlags = { ...flags };
-        candidate.directives = directives;
-        setAdaptiveState(prev => ({
-          ...prev,
-          domain,
-          focusTargets,
-          reasonFlags: { ...flags },
-          directives,
-        }));
-      }
-    } else {
-      candidate.pendingDomain = null;
-      candidate.candidateSince = null;
-    }
-
-    const canDeactivate = candidate.active && (
-      (activeConflicts.length === 0 && signals.recoveryStableStartTs && (now - signals.recoveryStableStartTs >= ADAPTIVE_RECOVERY_MS)) ||
-      nextLoad !== 'HIGH'
-    );
-
-    if (canDeactivate) {
-      candidate.active = false;
-      candidate.pendingDomain = null;
-      candidate.candidateSince = null;
-      candidate.domain = null;
-      candidate.since = null;
-      candidate.focusTargets = [];
-      candidate.reasonFlags = {};
-      candidate.directives = [];
-      setAdaptiveState(defaultAdaptiveState);
-      setAdaptiveFeedback(null);
-    }
-  }, [buildAdaptiveDirectives, computeAdaptiveFocusTargets]);
-
-  const markInteraction = useCallback((domainKey) => {
-    const now = performance.now();
-    const signals = loadSignalsRef.current;
-    if (!signals.interactionSwitches) {
-      signals.interactionSwitches = [];
-    }
-    signals.interactionSwitches.push({ ts: now, domain: domainKey });
-    signals.lastInteractionDomain = domainKey;
-  }, []);
-
-  const allowInteraction = useCallback((domainKey, focusKey = null) => {
-    const now = performance.now();
-    const guard = interactionGuardRef.current;
-
-    if (loadState === 'HIGH') {
-      if (guard.until && now < guard.until && guard.lastDomain === domainKey) {
-        setAdaptiveFeedback('Pause briefly to avoid rapid toggling.');
-        return false;
-      }
-      guard.until = now + 700;
-      guard.lastDomain = domainKey;
-    }
-
-    if (adaptiveState.active && adaptiveState.domain && adaptiveState.domain !== 'general') {
-      const domainMatches = (() => {
-        if (adaptiveState.domain === 'flight') return domainKey.startsWith('flight');
-        if (adaptiveState.domain === 'meeting') return domainKey.startsWith('meeting');
-        if (adaptiveState.domain === 'budget') {
-          return domainKey === 'budget' || domainKey.startsWith('flight') || domainKey.startsWith('hotel') || domainKey.startsWith('transport');
-        }
-        return domainKey === adaptiveState.domain;
-      })();
-
-      if (!domainMatches) {
-        setAdaptiveFeedback('Resolve the highlighted constraint before switching tasks.');
-        return false;
-      }
-
-      if (adaptiveState.focusTargets.length && focusKey) {
-        if (!adaptiveState.focusTargets.includes(focusKey)) {
-          setAdaptiveFeedback('Stay with the highlighted element until the constraint clears.');
-          return false;
-        }
-      }
-    }
-
-    return true;
-  }, [adaptiveState, loadState]);
-
-  const captureCostDelta = useCallback((key, delta) => {
-    const stamped = Date.now();
-    setCostDeltas(prev => ({
-      ...prev,
-      [key]: { delta, at: stamped }
-    }));
-  }, []);
+  const activeConflicts = useMemo(() => computeActiveConflicts(), [computeActiveConflicts]);
 
   const pushLoadToContext = useCallback((level, metrics, explanation, topFactorsOverride) => {
     const upScore = (v) => clamp01(0.5 + 0.5 * clamp01(v));
     const downScore = (v) => clamp01(0.49 * (1 - clamp01(v)));
-    let topFactors = topFactorsOverride || (level === 'HIGH'
+    const topFactors = topFactorsOverride || (level === 'HIGH'
       ? ['Constraint Violations', 'Failed Adjustments', 'Recovery Drag', 'Post-Failure Stall']
       : ['Planning Activity', 'Constraint Awareness']);
     const metricsPayload = level === 'HIGH'
@@ -500,13 +390,6 @@ const Task3 = () => {
           'Planning Activity': metrics.planningActivity,
           'Constraint Awareness': metrics.constraintAwareness,
         };
-
-    if (level === 'HIGH' && metrics.interactionThrash && metrics.interactionThrash > 0) {
-      metricsPayload['Interaction Thrash'] = upScore(metrics.interactionThrash);
-      if (!topFactors.includes('Interaction Thrash')) {
-        topFactors = [...topFactors, 'Interaction Thrash'];
-      }
-    }
 
     updateCognitiveLoad({
       loadLevel: level,
@@ -524,7 +407,6 @@ const Task3 = () => {
     signals.violationEvents = signals.violationEvents.filter(ev => now - ev.ts <= windowMs);
     signals.schedulingFailures = signals.schedulingFailures.filter(ev => now - ev.ts <= windowMs);
     signals.successEvents = signals.successEvents.filter(ev => now - ev.ts <= windowMs);
-    signals.interactionSwitches = (signals.interactionSwitches || []).filter(ev => now - ev.ts <= 4000);
 
     const activeConflicts = computeActiveConflicts();
     const hasConflicts = activeConflicts.length > 0;
@@ -556,7 +438,6 @@ const Task3 = () => {
     const dragReverts = schedulingFailuresCount >= 3;
     const slowRecovery = recoveryMs > 8000 || signals.cumulativeConflictMs > 18000;
     const idleAfterFailure = hasConflicts && signals.lastViolationTs && (!signals.lastSuccessTs || signals.lastSuccessTs < signals.lastViolationTs) && (now - signals.lastViolationTs > 8000);
-    const highInteractionThrash = (signals.interactionSwitches || []).length >= 5;
     const constraintPressure = hasConflicts || repeatedViolations || failedAdjustments;
 
     const successesAfterLastViolation = signals.successEvents.filter(ev => !signals.lastViolationTs || ev.ts > signals.lastViolationTs);
@@ -592,7 +473,6 @@ const Task3 = () => {
       idleStall: idleAfterFailure ? clamp01((now - (signals.lastViolationTs || now)) / 12000) : 0,
       dragReverts: clamp01(schedulingFailuresCount / 4),
       activeConflictsCount: activeConflicts.length,
-      interactionThrash: clamp01(((signals.interactionSwitches || []).length) / 6),
       source,
     };
 
@@ -600,7 +480,6 @@ const Task3 = () => {
       ? buildHighExplanation(activeConflicts, { repeatedViolations, failedAdjustments, dragReverts, idleAfterFailure, slowRecovery })
       : MEDIUM_EXPLANATION;
 
-    updateAdaptiveMode(nextLoad, activeConflicts, { repeatedViolations, failedAdjustments, dragReverts, idleAfterFailure, slowRecovery, highInteractionThrash }, now, signals);
     pushLoadToContext(nextLoad, metrics, explanation);
   }, [computeActiveConflicts, meetings, pushLoadToContext, selectedHotel, selectedOutboundFlight, selectedReturnFlight, selectedTransport]);
 
@@ -609,7 +488,6 @@ const Task3 = () => {
     loadSignalsRef.current.violationEvents.push({ ts: now, type, detail });
     loadSignalsRef.current.lastViolationTs = now;
     loadSignalsRef.current.lastActionTs = now;
-    loadSignalsRef.current.lastViolationType = type;
     loadSignalsRef.current.successStreakStart = null;
     evaluateLoadFromSignals('violation');
   }, [evaluateLoadFromSignals]);
@@ -634,7 +512,16 @@ const Task3 = () => {
       loadSignalsRef.current.recoveryStableStartTs = now;
     }
     evaluateLoadFromSignals('success');
-  }, [computeActiveConflicts, evaluateLoadFromSignals, updateAdaptiveMode]);
+  }, [computeActiveConflicts, evaluateLoadFromSignals]);
+
+  const updateCostTracking = useCallback((key, nextSelection) => {
+    const prevSelection = prevSelectionsRef.current[key];
+    const delta = costForSelection(key, nextSelection) - costForSelection(key, prevSelection);
+    if (delta !== 0) {
+      setCostDeltas(prev => ({ ...prev, [key]: delta }));
+    }
+    prevSelectionsRef.current[key] = nextSelection || null;
+  }, [costForSelection]);
 
   useEffect(() => {
     setFlights(generateFlights());
@@ -656,6 +543,10 @@ const Task3 = () => {
   useEffect(() => {
     setSimulationTask(3);
   }, []);
+
+  useEffect(() => {
+    setMeetingConflictDetails(detailedMeetingConflicts);
+  }, [detailedMeetingConflicts]);
 
   useEffect(() => {
     if (prevBudgetRef.current === null) {
@@ -682,17 +573,49 @@ const Task3 = () => {
   }, [evaluateLoadFromSignals]);
 
   useEffect(() => {
+    if (loadState === 'HIGH') {
+      if (!highLoadStartRef.current) highLoadStartRef.current = performance.now();
+      const timer = setTimeout(() => {
+        if (loadState === 'HIGH' && highLoadStartRef.current && (performance.now() - highLoadStartRef.current) >= 2000) {
+          setAdaptiveActive(true);
+        }
+      }, 2100);
+      return () => clearTimeout(timer);
+    }
+    highLoadStartRef.current = null;
+    setAdaptiveActive(false);
+  }, [loadState]);
+
+  useEffect(() => {
+    if (loadState !== 'HIGH') {
+      setAdaptiveActive(false);
+    }
+  }, [loadState]);
+
+  useEffect(() => {
     evaluateLoadFromSignals('state_change');
   }, [evaluateLoadFromSignals, meetings, selectedHotel, selectedOutboundFlight, selectedReturnFlight, selectedTransport]);
 
-  const handleOutboundFlightSelect = (flight) => {
-    if (!allowInteraction('flight_outbound', 'outboundFlight')) {
+  useEffect(() => {
+    if (!adaptiveActive) {
+      setActiveDomain(null);
       return;
     }
-    setAdaptiveFeedback(null);
-    markInteraction('flight_outbound');
-    const prevPrice = selectedOutboundFlight?.price || 0;
-    captureCostDelta('outboundFlight', flight.price - prevPrice);
+    let domain = lastInteractionRef.current || 'flight';
+    if (domain === 'flight') {
+      domain = 'flight';
+    } else if (activeConflicts.some(c => c.startsWith('meeting_'))) {
+      domain = 'meeting';
+    } else if (activeConflicts.includes('budget') || remainingBudget < 0) {
+      domain = 'budget';
+    }
+    setActiveDomain(domain);
+  }, [activeConflicts, adaptiveActive, remainingBudget]);
+
+  const handleOutboundFlightSelect = (flight) => {
+    lastInteractionRef.current = 'flight';
+    setActiveFlightSubtask('outbound');
+    updateCostTracking('outboundFlight', flight);
     setSelectedOutboundFlight(flight);
     log('outbound_flight_selected', {
       airline: flight.airline,
@@ -709,13 +632,9 @@ const Task3 = () => {
   };
 
   const handleReturnFlightSelect = (flight) => {
-    if (!allowInteraction('flight_return', 'returnFlight')) {
-      return;
-    }
-    setAdaptiveFeedback(null);
-    markInteraction('flight_return');
-    const prevPrice = selectedReturnFlight?.price || 0;
-    captureCostDelta('returnFlight', flight.price - prevPrice);
+    lastInteractionRef.current = 'flight';
+    setActiveFlightSubtask('return');
+    updateCostTracking('returnFlight', flight);
     setSelectedReturnFlight(flight);
     log('return_flight_selected', {
       airline: flight.airline,
@@ -724,21 +643,19 @@ const Task3 = () => {
     });
     try { task3Logger.logFlightSelection(flight, 'return'); } catch (e) { /* ignore */ }
     boostSimulationActivity(0.25);
-    if (flight.departureTime.getHours() < 12) {
-      recordViolationEvent('flight_constraint', 'return_departure_before_12');
+    const arrivesNextDay = flight.arrivalTime.getDate() !== flight.departureTime.getDate();
+    const arrivalHour = flight.arrivalTime.getHours();
+    const arrivalInWindow = arrivalHour >= 0 && arrivalHour < 12;
+    if (!arrivesNextDay || !arrivalInWindow) {
+      recordViolationEvent('flight_constraint', 'return_arrival_not_next_day_morning');
     } else {
       recordSuccessAction();
     }
   };
 
   const handleHotelSelect = (hotel) => {
-    if (!allowInteraction('hotel_selection', 'hotelSelection')) {
-      return;
-    }
-    setAdaptiveFeedback(null);
-    markInteraction('hotel_selection');
-    const prevPrice = selectedHotel?.totalPrice || 0;
-    captureCostDelta('hotel', hotel.totalPrice - prevPrice);
+    lastInteractionRef.current = 'budget';
+    updateCostTracking('hotel', hotel);
     setSelectedHotel(hotel);
     log('hotel_selected', {
       name: hotel.name,
@@ -755,13 +672,8 @@ const Task3 = () => {
   };
 
   const handleTransportSelect = (transport) => {
-    if (!allowInteraction('transport_selection', 'transportSelection')) {
-      return;
-    }
-    setAdaptiveFeedback(null);
-    markInteraction('transport_selection');
-    const prevPrice = selectedTransport?.price || 0;
-    captureCostDelta('transport', transport.price - prevPrice);
+    lastInteractionRef.current = 'budget';
+    updateCostTracking('transport', transport);
     setSelectedTransport(transport);
     log('transport_selected', {
       type: transport.type,
@@ -795,6 +707,8 @@ const Task3 = () => {
   };
 
   const handleComponentEnter = (name) => {
+    const lowerName = (name || '').toLowerCase();
+    // Hover/focus only for analytics; do not change active segment/domain for adaptation
     try { task3Logger.componentSwitch(name); } catch (e) { /* ignore */ }
     // Start/stop mouse entropy sampling per-area when switching components
     try {
@@ -823,11 +737,6 @@ const Task3 = () => {
 
   // Meeting drag/drop instrumentation: drag start -> log; drop -> validate, log attempts
   const handleMeetingDragStart = (meetingId) => {
-    if (!allowInteraction('meeting_drag', 'meetingSchedule')) {
-      return;
-    }
-    setAdaptiveFeedback(null);
-    markInteraction('meeting_drag');
     try { task3Logger.logMeetingDragStart(meetingId); } catch (e) { /* ignore */ }
     boostSimulationActivity(0.15);
   };
@@ -879,19 +788,8 @@ const Task3 = () => {
   };
 
   const handleMeetingDropAttempt = (meetingId, day, hour) => {
-    if (!allowInteraction('meeting_drop', 'meetingSchedule')) {
-      return;
-    }
+    lastInteractionRef.current = 'meeting';
     const meeting = meetings.find(m => m.id === meetingId);
-    if (adaptiveState.active && adaptiveState.domain === 'meeting') {
-      const hasConflicts = Object.keys(meetingConflictDetails.conflictsByMeeting).length > 0;
-      if (hasConflicts && meeting && !meeting.scheduled) {
-        setAdaptiveFeedback('Resolve highlighted meeting conflicts before adding new meetings.');
-        return;
-      }
-    }
-    setAdaptiveFeedback(null);
-    markInteraction('meeting_drop');
     const { valid, reason } = validateSingleMeetingPlacement(meeting, day, hour, meetings);
     if (valid) {
       setMeetings(prev => prev.map(m => m.id === meetingId ? { ...m, scheduled: true, day, startTime: hour } : m));
@@ -939,8 +837,13 @@ const Task3 = () => {
 
     if (!selectedReturnFlight) {
       errors.push('Please select a return flight');
-    } else if (selectedReturnFlight.departureTime.getHours() < 12) {
-      errors.push('Return flight must depart after 12:00');
+    } else {
+      const arrivesNextDay = selectedReturnFlight.arrivalTime.getDate() !== selectedReturnFlight.departureTime.getDate();
+      const arrivalHour = selectedReturnFlight.arrivalTime.getHours();
+      const arrivalInWindow = arrivalHour >= 0 && arrivalHour < 12;
+      if (!arrivesNextDay || !arrivalInWindow) {
+        errors.push('Return flight must arrive the next day between 00:00 and 11:00');
+      }
     }
 
     // Hotel validation
@@ -1118,122 +1021,6 @@ const Task3 = () => {
     completeCurrentTask();
   };
 
-  const recentCostDeltas = useMemo(() => {
-    const now = Date.now();
-    const windowed = {};
-    Object.entries(costDeltas).forEach(([key, payload]) => {
-      if (payload && now - payload.at <= COST_DELTA_WINDOW_MS && Math.abs(payload.delta) > 0) {
-        windowed[key] = payload.delta;
-      }
-    });
-    return windowed;
-  }, [costDeltas]);
-
-  const outboundConstraintLabels = useMemo(() => {
-    const map = {};
-    filteredOutboundFlights.forEach(flight => {
-      const labels = [];
-      if (flight.arrivalTime.getHours() >= 15) labels.push('Arrives after required time');
-      if (labels.length) {
-        map[flight.id] = labels;
-      }
-    });
-    return map;
-  }, [filteredOutboundFlights]);
-
-  const returnConstraintLabels = useMemo(() => {
-    const map = {};
-    filteredReturnFlights.forEach(flight => {
-      const labels = [];
-      if (flight.departureTime.getHours() < 12) labels.push('Departs before allowed time');
-      if (labels.length) {
-        map[flight.id] = labels;
-      }
-    });
-    return map;
-  }, [filteredReturnFlights]);
-
-  const meetingConflictDetails = useMemo(() => {
-    const details = {
-      conflictsByMeeting: {},
-      conflictSlots: [],
-    };
-
-    meetings.forEach(meeting => {
-      if (!meeting.scheduled) return;
-      const conflictEntries = [];
-      const pushConflict = (type, message) => {
-        if (!conflictEntries.find(entry => entry.type === type)) {
-          conflictEntries.push({ type, message });
-        }
-      };
-
-      if (meeting.constraints.allowedDays && !meeting.constraints.allowedDays.includes(meeting.day)) {
-        pushConflict('meeting_wrong_day', `Must occur on Day ${meeting.constraints.allowedDays.join(' or ')}`);
-      }
-
-      if (meeting.constraints.timeRange) {
-        if (meeting.startTime < meeting.constraints.timeRange.start || meeting.startTime + meeting.duration > meeting.constraints.timeRange.end) {
-          pushConflict('meeting_time_range', `Outside ${meeting.constraints.timeRange.start}:00-${meeting.constraints.timeRange.end}:00 window`);
-        }
-      }
-
-      if (meeting.constraints.mustFollow) {
-        const followed = meetings.find(m => m.id === meeting.constraints.mustFollow);
-        if (followed && followed.scheduled) {
-          const invalidOrder = meeting.day < followed.day || (meeting.day === followed.day && meeting.startTime <= followed.startTime + followed.duration);
-          if (invalidOrder) {
-            pushConflict('meeting_must_follow', `Requires ${followed.title} first`);
-          }
-        }
-      }
-
-      if (meeting.constraints.mustPrecede) {
-        const preceded = meetings.find(m => m.id === meeting.constraints.mustPrecede);
-        if (preceded && preceded.scheduled) {
-          const invalidOrder = meeting.day > preceded.day || (meeting.day === preceded.day && meeting.startTime + meeting.duration >= preceded.startTime);
-          if (invalidOrder) {
-            pushConflict('meeting_must_precede', `Must finish before ${preceded.title}`);
-          }
-        }
-      }
-
-      if (meeting.constraints.cannotOverlapWith) {
-        meeting.constraints.cannotOverlapWith.forEach((otherId) => {
-          const other = meetings.find(m => m.id === otherId);
-          if (other && other.scheduled && other.day === meeting.day) {
-            const meetingEnd = meeting.startTime + meeting.duration;
-            const otherEnd = other.startTime + other.duration;
-            if (!(meetingEnd <= other.startTime || meeting.startTime >= otherEnd)) {
-              pushConflict('meeting_overlap', `Overlaps with ${other.title}`);
-            }
-          }
-        });
-      }
-
-      if (conflictEntries.length) {
-        details.conflictsByMeeting[meeting.id] = conflictEntries;
-        for (let hour = meeting.startTime; hour < meeting.startTime + meeting.duration; hour += 1) {
-          details.conflictSlots.push({
-            day: meeting.day,
-            hour,
-            meetingId: meeting.id,
-            types: conflictEntries.map(entry => entry.type),
-          });
-        }
-      }
-    });
-
-    return details;
-  }, [meetings]);
-
-  const currentActiveConflicts = useMemo(() => computeActiveConflicts(), [computeActiveConflicts]);
-
-  const adaptiveFlightMode = adaptiveState.active && adaptiveState.domain === 'flight';
-  const adaptiveMeetingMode = adaptiveState.active && adaptiveState.domain === 'meeting';
-  const adaptiveBudgetMode = adaptiveState.active && adaptiveState.domain === 'budget';
-  const flightSelectionLocked = adaptiveFlightMode && (currentActiveConflicts.includes('outbound_time') || currentActiveConflicts.includes('return_time'));
-
   const guidedSteps = useMemo(() => ([
     {
       id: 'flights',
@@ -1261,6 +1048,138 @@ const Task3 = () => {
       completed: remainingBudget >= 0
     }
   ]), [selectedOutboundFlight, selectedReturnFlight, selectedHotel, selectedTransport, meetings, remainingBudget]);
+
+  const flightConstraintLabels = useMemo(() => {
+    const labels = {};
+    flights.forEach((flight) => {
+      const flightLabels = [];
+      if (flight.type === 'outbound' && flight.arrivalTime.getHours() >= 15) {
+        flightLabels.push('Arrives after 15:00 requirement');
+      }
+      if (flight.type === 'return') {
+        const arrivesNextDay = flight.arrivalTime.getDate() !== flight.departureTime.getDate();
+        const arrivalHour = flight.arrivalTime.getHours();
+        const arrivalInWindow = arrivalHour >= 0 && arrivalHour < 12;
+        if (!arrivesNextDay || !arrivalInWindow) {
+          flightLabels.push('Does not arrive next day (00:00-11:00)');
+        }
+      }
+      if (flightLabels.length > 0) {
+        labels[flight.id] = flightLabels;
+      }
+    });
+    return labels;
+  }, [flights]);
+
+  const outboundConstraintLabels = useMemo(() => {
+    const labels = {};
+    Object.entries(flightConstraintLabels).forEach(([id, l]) => {
+      if (id.startsWith('out_')) labels[id] = l;
+    });
+    return labels;
+  }, [flightConstraintLabels]);
+
+  const returnConstraintLabels = useMemo(() => {
+    const labels = {};
+    Object.entries(flightConstraintLabels).forEach(([id, l]) => {
+      if (id.startsWith('in_')) labels[id] = l;
+    });
+    return labels;
+  }, [flightConstraintLabels]);
+
+  const primaryFlightViolation = useMemo(() => {
+    if (activeFlightSubtask === 'outbound') return 'outbound_time';
+    if (activeFlightSubtask === 'return') return 'return_time';
+    return null;
+  }, [activeFlightSubtask]);
+
+  const flightHint = primaryFlightViolation === 'outbound_time'
+    ? 'This flight arrives after your required time - earlier departures satisfy all constraints.'
+    : primaryFlightViolation === 'return_time'
+      ? 'This return does not arrive next day in the 00:00-11:00 window - options that do will satisfy the constraint.'
+      : 'Check arrival before 15:00 and return arrival next day 00:00-11:00 to satisfy constraints.';
+
+  const flightFocusTargets = useMemo(() => {
+    if (activeFlightSubtask === 'outbound') return ['outbound'];
+    if (activeFlightSubtask === 'return') return ['return'];
+    return ['outbound'];
+  }, [activeFlightSubtask]);
+
+  const meetingAdaptiveActive = adaptiveActive && activeDomain === 'meeting';
+  const flightAdaptiveActive = adaptiveActive && activeDomain === 'flight';
+  const constraintViolationsDominant = useMemo(() => {
+    const now = performance.now();
+    const windowMs = 12000;
+    const violations = (loadSignalsRef.current?.violationEvents || []).filter(ev => now - ev.ts <= windowMs);
+    const failures = (loadSignalsRef.current?.schedulingFailures || []).filter(ev => now - ev.ts <= windowMs);
+    return violations.length >= 2 && violations.length >= failures.length;
+  }, [loadState]);
+
+  const flightInterventionActive = flightAdaptiveActive && constraintViolationsDominant;
+  const outboundIntervention = flightInterventionActive && primaryFlightViolation === 'outbound_time';
+  const returnIntervention = flightInterventionActive && primaryFlightViolation === 'return_time';
+
+  const outboundAdaptiveRender = flightAdaptiveActive && activeFlightSubtask === 'outbound';
+  const returnAdaptiveRender = flightAdaptiveActive && activeFlightSubtask === 'return';
+  const budgetAdaptiveActive = adaptiveActive && activeDomain === 'budget';
+
+  const meetingFocusTargets = useMemo(() => {
+    if (!meetingAdaptiveActive) return [];
+    const targets = ['meetingSchedule'];
+    (meetingConflictDetails.conflictSlots || []).forEach(slot => {
+      if (Array.isArray(slot.types)) targets.push(...slot.types);
+    });
+    return Array.from(new Set(targets));
+  }, [meetingAdaptiveActive, meetingConflictDetails]);
+
+  const meetingAdaptiveHint = useMemo(() => {
+    if (!meetingAdaptiveActive) return '';
+    const firstMeetingConflicts = Object.values(meetingConflictDetails.conflictsByMeeting || {})[0];
+    if (firstMeetingConflicts && firstMeetingConflicts.length > 0) {
+      return firstMeetingConflicts[0].message;
+    }
+    if (meetingConflictDetails.focusedDays && meetingConflictDetails.focusedDays.length > 0) {
+      return 'Try adjusting the highlighted day and resolve dependency cues first.';
+    }
+    return 'Try scheduling prerequisite meetings before placing dependents.';
+  }, [meetingAdaptiveActive, meetingConflictDetails]);
+
+  const dependencyCues = useMemo(() => {
+    if (!meetingAdaptiveActive) return [];
+    const cues = [];
+    Object.values(meetingConflictDetails.conflictsByMeeting || {}).forEach(list => {
+      list.forEach(item => {
+        if (item.type === 'must_follow' || item.type === 'must_precede' || item.type === 'unscheduled_dependency') {
+          cues.push(item.message);
+        }
+      });
+    });
+    return Array.from(new Set(cues)).slice(0, 3);
+  }, [meetingAdaptiveActive, meetingConflictDetails]);
+
+  const budgetParts = useMemo(() => ({
+    outboundFlight: costForSelection('outboundFlight', selectedOutboundFlight),
+    returnFlight: costForSelection('returnFlight', selectedReturnFlight),
+    hotel: costForSelection('hotel', selectedHotel),
+    transport: costForSelection('transport', selectedTransport)
+  }), [costForSelection, selectedHotel, selectedOutboundFlight, selectedReturnFlight, selectedTransport]);
+
+  const budgetEmphasizedKeys = useMemo(() => {
+    if (!budgetAdaptiveActive || remainingBudget >= 0) return [];
+    const positiveDeltas = Object.entries(costDeltas)
+      .filter(([, delta]) => delta > 0)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .map(([key]) => key);
+    if (positiveDeltas.length > 0) return positiveDeltas.slice(0, 2);
+    const heaviest = Object.entries(budgetParts).sort((a, b) => b[1] - a[1]);
+    return heaviest.length > 0 ? [heaviest[0][0]] : [];
+  }, [budgetAdaptiveActive, budgetParts, costDeltas, remainingBudget]);
+
+  const budgetHint = budgetAdaptiveActive && remainingBudget < 0
+    ? 'Reducing hotel nights or selecting an earlier return brings you within budget.'
+    : budgetAdaptiveActive
+      ? 'Keep the summary pinned while you rebalance costs.'
+      : '';
 
   const runGuidedValidation = () => {
     const success = validateConstraints();
@@ -1291,6 +1210,33 @@ const Task3 = () => {
     );
   }
 
+  const filteredOutboundFlights = filterFlights(flights, 'outbound');
+  const filteredReturnFlights = filterFlights(flights, 'return');
+
+  const outboundAdaptiveMode = flightAdaptiveActive ? {
+    domain: 'flight',
+    focusTargets: flightFocusTargets,
+    hint: flightHint,
+    primaryViolation: primaryFlightViolation,
+    lockViolations: outboundIntervention
+  } : null;
+
+  const returnAdaptiveMode = flightAdaptiveActive ? {
+    domain: 'flight',
+    focusTargets: flightFocusTargets,
+    hint: flightHint,
+    primaryViolation: primaryFlightViolation,
+    lockViolations: returnIntervention
+  } : null;
+
+  const meetingAdaptiveMode = meetingAdaptiveActive ? {
+    focusTargets: meetingFocusTargets,
+    hint: meetingAdaptiveHint,
+    collapseInactiveDays: true,
+    dependencyCues,
+    focusedDays: meetingConflictDetails.focusedDays
+  } : null;
+
   return (
     <PageContainer>
       <PageTitle>Plan Your Business Trip to Berlin</PageTitle>
@@ -1301,16 +1247,6 @@ const Task3 = () => {
           <span style={{ fontSize: '0.85rem', color: '#475569' }}>{uiLoadState}</span>
         </NoticeHeader>
         <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
-        {adaptiveState.active && (
-          <div style={{ marginTop: '0.75rem', background: '#fff', borderRadius: '8px', border: '1px solid #cbd5f5', padding: '0.75rem' }}>
-            {adaptiveState.directives.map((line, idx) => (
-              <p key={idx} style={{ margin: idx === 0 ? '0 0 0.35rem' : '0', fontSize: '0.85rem', color: '#1f2a5a', fontWeight: idx === 0 ? 600 : 500 }}>{line}</p>
-            ))}
-            {adaptiveFeedback && (
-              <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#be123c', fontWeight: 600 }}>{adaptiveFeedback}</p>
-            )}
-          </div>
-        )}
         {/* insights removed due to missing cognitiveLoadHints */}
         <GuidedList>
           {guidedSteps.map(step => (
@@ -1327,19 +1263,6 @@ const Task3 = () => {
 
       <Layout>
         <MainContent>
-          {adaptiveBudgetMode && (
-            <BudgetSummary
-              flight={selectedOutboundFlight}
-              returnFlight={selectedReturnFlight}
-              hotel={selectedHotel}
-              transport={selectedTransport}
-              total={totalCost}
-              remaining={remainingBudget}
-              highlight
-              deltas={recentCostDeltas}
-              variant="inline"
-            />
-          )}
           <FlightBooking
             flights={filteredOutboundFlights}
             onFlightSelect={handleOutboundFlightSelect}
@@ -1349,11 +1272,11 @@ const Task3 = () => {
             onFlightHoverStart={handleFlightHoverStart}
             onFlightHoverEnd={handleFlightHoverEnd}
             onComponentEnter={handleComponentEnter}
-            adaptiveMode={adaptiveState}
-            focusKey="outboundFlight"
+            adaptiveMode={outboundAdaptiveRender ? outboundAdaptiveMode : null}
             constraintLabels={outboundConstraintLabels}
-            selectionLocked={flightSelectionLocked}
-            deemphasizeNonViable={adaptiveFlightMode}
+            deemphasizeNonViable={outboundAdaptiveRender}
+            selectionLocked={outboundAdaptiveRender && outboundIntervention}
+            focusKey="outbound"
           />
           
           <FlightBooking
@@ -1361,15 +1284,15 @@ const Task3 = () => {
             onFlightSelect={handleReturnFlightSelect}
             selectedFlight={selectedReturnFlight}
             title="Return Flight (Berlin → NY)"
-            constraint="Must depart after 12:00 and arrive the next day"
+            constraint="Must arrive the next day between 00:00 and 11:00"
             onFlightHoverStart={handleFlightHoverStart}
             onFlightHoverEnd={handleFlightHoverEnd}
             onComponentEnter={handleComponentEnter}
-            adaptiveMode={adaptiveState}
-            focusKey="returnFlight"
+            adaptiveMode={returnAdaptiveRender ? returnAdaptiveMode : null}
             constraintLabels={returnConstraintLabels}
-            selectionLocked={flightSelectionLocked}
-            deemphasizeNonViable={adaptiveFlightMode}
+            deemphasizeNonViable={returnAdaptiveRender}
+            selectionLocked={returnAdaptiveRender && returnIntervention}
+            focusKey="return"
           />
           
           <HotelBooking
@@ -1397,8 +1320,8 @@ const Task3 = () => {
             onComponentEnter={handleComponentEnter}
             onResetMeetings={handleResetMeetings}
             conflictDetails={meetingConflictDetails}
-            adaptiveMode={adaptiveState}
-            highlightConflicts={adaptiveMeetingMode}
+            adaptiveMode={meetingAdaptiveMode}
+            highlightConflicts={meetingAdaptiveActive}
           />
         </MainContent>
 
@@ -1414,8 +1337,11 @@ const Task3 = () => {
             transport={selectedTransport}
             total={totalCost}
             remaining={remainingBudget}
-            highlight={isHighLoad || remainingBudget < 0}
-            deltas={recentCostDeltas}
+            highlight={isHighLoad || remainingBudget < 0 || budgetAdaptiveActive}
+            deltas={costDeltas}
+            variant={budgetAdaptiveActive ? 'inline' : 'sidebar'}
+            emphasizedKeys={budgetEmphasizedKeys}
+            inlineHint={budgetHint}
           />
           
           <div>

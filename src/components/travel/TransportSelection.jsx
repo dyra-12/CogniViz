@@ -26,6 +26,8 @@ const OptionCard = styled.div`
   cursor: pointer;
   transition: all 0.2s ease;
   background: ${props => props.selected ? props.theme.colors.primary + '15' : props.theme.colors.white};
+  box-shadow: ${props => props.$anchored ? `0 0 0 3px ${props.theme.colors.primary}20` : 'none'};
+  opacity: ${props => props.$muted ? 0.55 : 1};
   
   &:hover {
     border-color: ${props => props.theme.colors.primary};
@@ -48,8 +50,27 @@ const OptionDescription = styled.p`
   color: ${props => props.theme.colors.gray700};
   font-size: ${props => props.theme.fontSizes.sm};
 `;
+const AnchorPill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: ${props => props.theme.colors.primary}15;
+  color: ${props => props.theme.colors.primary};
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid ${props => props.theme.colors.primary}40;
+  margin-top: ${props => props.theme.spacing[1]};
+`;
 
-const TransportSelection = ({ options, selectedOption, onSelect, onTransportHoverStart, onTransportHoverEnd, onComponentEnter }) => {
+const StabilizeHint = styled.div`
+  font-size: 0.72rem;
+  color: ${props => props.theme.colors.gray700};
+  margin-top: 6px;
+`;
+
+const TransportSelection = ({ options, selectedOption, onSelect, onTransportHoverStart, onTransportHoverEnd, onComponentEnter, adaptiveMode }) => {
   return (
     <Container onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Transportation'); }}>
       <Title>Select Transportation</Title>
@@ -58,6 +79,8 @@ const TransportSelection = ({ options, selectedOption, onSelect, onTransportHove
           <OptionCard
             key={option.id}
             selected={selectedOption?.id === option.id}
+            $anchored={adaptiveMode?.showAnchors && adaptiveMode?.anchoredId && selectedOption?.id === adaptiveMode.anchoredId}
+            $muted={Array.isArray(adaptiveMode?.focusTargets) && adaptiveMode.focusTargets.length > 0 && !adaptiveMode.focusTargets.includes('transport')}
             onClick={() => onSelect(option)}
             onMouseEnter={() => { if (typeof onTransportHoverStart === 'function') onTransportHoverStart(option); }}
             onMouseLeave={() => { if (typeof onTransportHoverEnd === 'function') onTransportHoverEnd(option); }}
@@ -65,6 +88,14 @@ const TransportSelection = ({ options, selectedOption, onSelect, onTransportHove
             <OptionTitle>{option.type}</OptionTitle>
             <OptionPrice>${option.price}</OptionPrice>
             <OptionDescription>{option.description}</OptionDescription>
+            {adaptiveMode?.showAnchors && adaptiveMode?.anchoredId && selectedOption?.id === adaptiveMode.anchoredId && (
+              <>
+                <AnchorPill>Anchored choice</AnchorPill>
+                {adaptiveMode?.stabilizing && (
+                  <StabilizeHint>Brief pause reduces rapid switching.</StabilizeHint>
+                )}
+              </>
+            )}
           </OptionCard>
         ))}
       </OptionsGrid>

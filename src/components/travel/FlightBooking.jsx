@@ -19,6 +19,24 @@ const Constraint = styled.div`
   font-style: italic;
 `;
 
+const AdaptiveCallout = styled.div`
+  margin-bottom: ${props => props.theme.spacing[3]};
+  padding: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  background: ${props => props.theme.colors.info}12;
+  border: 1px dashed ${props => props.theme.colors.info};
+  color: ${props => props.theme.colors.info};
+  font-weight: 600;
+`;
+
+const InlineIntervention = styled.div`
+  margin-top: -${props => props.theme.spacing[2]};
+  margin-bottom: ${props => props.theme.spacing[2]};
+  color: ${props => props.theme.colors.danger};
+  font-weight: 700;
+  font-size: 0.9rem;
+`;
+
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
@@ -44,6 +62,7 @@ const Tr = styled.tr`
   background: ${props => props.$violating ? `${props.theme.colors.danger}12` : 'transparent'};
   opacity: ${props => props.$muted ? 0.55 : 1};
   border-left: ${props => props.$focused ? `4px solid ${props.theme.colors.warning}` : '0'};
+  box-shadow: ${props => props.$validEmphasis ? `inset 0 0 0 2px ${props.theme.colors.success}55` : 'none'};
   
   &:hover {
     background: ${props => props.$violating ? `${props.theme.colors.danger}18` : props.theme.colors.gray50};
@@ -88,6 +107,19 @@ const ViolationBadge = styled.span`
   width: fit-content;
 `;
 
+const ConstraintText = styled.span`
+  color: ${props => props.$active ? props.theme.colors.danger : 'inherit'};
+  font-weight: ${props => props.$active ? 700 : 500};
+`;
+
+const InlineNote = styled.span`
+  display: inline-block;
+  margin-left: 6px;
+  color: ${props => props.theme.colors.danger};
+  font-size: 0.75rem;
+  font-weight: 700;
+`;
+
 const FlightBooking = ({
   flights,
   onFlightSelect,
@@ -119,9 +151,27 @@ const FlightBooking = ({
   );
 
   return (
-    <Container onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Flights'); }}>
+    <Container onMouseEnter={() => {
+      if (typeof onComponentEnter === 'function') {
+        if (focusKey === 'outbound') onComponentEnter('Outbound Flights');
+        else if (focusKey === 'return') onComponentEnter('Return Flights');
+        else onComponentEnter('Flights');
+      }
+    }}>
       <Title>{title}</Title>
       <Constraint highlight={highlight}>{constraint}</Constraint>
+
+      {adaptiveMode?.lockViolations && (
+        <InlineIntervention>
+          Invalid options temporarily dimmed and disabled to reduce planning overload.
+        </InlineIntervention>
+      )}
+
+      {adaptiveMode?.hint && (
+        <AdaptiveCallout>
+          {adaptiveMode.hint}
+        </AdaptiveCallout>
+      )}
 
       <Table>
         <thead>
@@ -141,8 +191,12 @@ const FlightBooking = ({
             const violating = labels.length > 0;
             const focusActive = Array.isArray(adaptiveMode?.focusTargets) && adaptiveMode.focusTargets.includes(focusKey);
             const focusedRow = focusActive && violating;
-            const muted = deemphasizeNonViable && violating && !focusedRow;
-            const lockButton = selectionLocked && adaptiveMode?.domain === 'flight' && deemphasizeNonViable && !focusedRow;
+            const lockViolations = selectionLocked && adaptiveMode?.lockViolations;
+            const muted = (deemphasizeNonViable && violating && !focusedRow) || (lockViolations && violating);
+            const lockButton = lockViolations && violating;
+            const outboundArrivalConflict = adaptiveMode?.primaryViolation === 'outbound_time' && flight.type === 'outbound' && violating;
+            const returnArrivalConflict = adaptiveMode?.primaryViolation === 'return_time' && flight.type === 'return' && violating;
+            const validEmphasis = Boolean(adaptiveMode?.lockViolations) && !violating;
             return (
               <Tr 
               key={flight.id} 
@@ -152,6 +206,8 @@ const FlightBooking = ({
               $violating={violating}
               $focused={focusedRow}
               $muted={muted}
+              $validEmphasis={validEmphasis}
+              style={lockButton ? { pointerEvents: 'none' } : undefined}
             >
               <Td>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -161,8 +217,18 @@ const FlightBooking = ({
                   ))}
                 </div>
               </Td>
-              <Td>{formatTime(flight.departureTime)}</Td>
-              <Td>{formatTime(flight.arrivalTime)}</Td>
+              <Td>
+                <ConstraintText $active={false}>
+                  {formatTime(flight.departureTime)}
+                </ConstraintText>
+              </Td>
+              <Td>
+                <ConstraintText $active={outboundArrivalConflict || returnArrivalConflict}>
+                  {formatTime(flight.arrivalTime)}
+                </ConstraintText>
+                {outboundArrivalConflict && <InlineNote>Arrives after required 15:00</InlineNote>}
+                {returnArrivalConflict && <InlineNote>Must arrive next day 00:00-11:00</InlineNote>}
+              </Td>
               <Td>{formatDuration(flight.duration)}</Td>
               <Td>{flight.stops}</Td>
               <Td>${flight.price}</Td>

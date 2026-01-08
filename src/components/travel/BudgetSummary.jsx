@@ -23,6 +23,8 @@ const BudgetItem = styled.div`
   margin-bottom: ${props => props.theme.spacing[3]};
   padding: ${props => props.theme.spacing[2]};
   border-bottom: 1px solid ${props => props.theme.colors.gray200};
+  background: ${props => props.$emphasized ? `${props.theme.colors.danger}10` : 'transparent'};
+  border-left: ${props => props.$emphasized ? `3px solid ${props.theme.colors.danger}` : 'none'};
 `;
 
 const Total = styled(BudgetItem)`
@@ -53,8 +55,12 @@ const BudgetSummary = ({
   remaining,
   highlight = false,
   deltas = {},
-  variant = 'sidebar'
+  variant = 'sidebar',
+  emphasizedKeys = [],
+  inlineHint = ''
 }) => {
+  const emphasizeSet = new Set(emphasizedKeys || []);
+
   const formatDelta = (value) => {
     if (typeof value !== 'number' || value === 0) return null;
     const increase = value > 0;
@@ -70,9 +76,16 @@ const BudgetSummary = ({
 
   return (
     <BudgetContainer $highlighted={highlight} $variant={variant}>
-      <h3>Budget Summary</h3>
+      <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        Budget Summary
+        {variant === 'inline' && (
+          <span style={{ fontSize: '0.75rem', color: '#4895ef', fontWeight: 700 }}>
+            Pinned while resolving overrun
+          </span>
+        )}
+      </h3>
       
-      <BudgetItem>
+      <BudgetItem $emphasized={emphasizeSet.has('outboundFlight')}>
         <span>Outbound Flight:</span>
         <span>
           {flight ? `$${flight.price}` : 'Not selected'}
@@ -80,7 +93,7 @@ const BudgetSummary = ({
         </span>
       </BudgetItem>
 
-      <BudgetItem>
+      <BudgetItem $emphasized={emphasizeSet.has('returnFlight')}>
         <span>Return Flight:</span>
         <span>
           {returnFlight ? `$${returnFlight.price}` : 'Not selected'}
@@ -88,7 +101,7 @@ const BudgetSummary = ({
         </span>
       </BudgetItem>
       
-      <BudgetItem>
+      <BudgetItem $emphasized={emphasizeSet.has('hotel')}>
         <span>Hotel (3 nights):</span>
         <span>
           {hotel ? `$${hotel.totalPrice}` : 'Not selected'}
@@ -96,7 +109,7 @@ const BudgetSummary = ({
         </span>
       </BudgetItem>
       
-      <BudgetItem>
+      <BudgetItem $emphasized={emphasizeSet.has('transport')}>
         <span>Transportation:</span>
         <span>
           {transport ? `$${transport.price}` : 'Not selected'}
@@ -120,14 +133,14 @@ const BudgetSummary = ({
       <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
         Total Budget: $1,380
       </div>
-      {highlight && (
+      {(highlight || inlineHint) && (
         <div style={{
           marginTop: '0.5rem',
           fontSize: '0.85rem',
           color: '#4895ef',
           fontWeight: 600
         }}>
-          Keep an eye here—going over budget is driving load up.
+          {inlineHint || 'Keep an eye here - going over budget is driving load up.'}
         </div>
       )}
     </BudgetContainer>

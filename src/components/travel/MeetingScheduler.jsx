@@ -10,6 +10,22 @@ const SchedulerContainer = styled.div`
   margin-bottom: ${props => props.theme.spacing[6]};
 `;
 
+const AdaptiveCallout = styled.div`
+  margin-bottom: ${props => props.theme.spacing[3]};
+  padding: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  background: ${props => props.theme.colors.info}12;
+  border: 1px dashed ${props => props.theme.colors.info};
+  color: ${props => props.theme.colors.info};
+  font-weight: 600;
+`;
+
+const NoiseNotice = styled.div`
+  margin-bottom: ${props => props.theme.spacing[2]};
+  color: ${props => props.theme.colors.gray700};
+  font-size: ${props => props.theme.fontSizes.sm};
+`;
+
 const HeaderContainer = styled.div`
   display: flex;
   justify-content: space-between;
@@ -28,7 +44,10 @@ const DayColumn = styled.div`
   border: 1px solid ${props => props.theme.colors.gray300};
   border-radius: ${props => props.theme.borderRadius.lg};
   padding: ${props => `${props.theme.spacing[2]} 0`};
-  min-height: 220px;
+  min-height: ${props => props.$collapsed ? '120px' : '220px'};
+  opacity: ${props => props.$collapsed ? 0.55 : 1};
+  position: relative;
+  overflow: hidden;
 `;
 
 const DayHeader = styled.h4`
@@ -55,6 +74,7 @@ const TimeSlot = styled.div`
   cursor: ${props => props.hasMeeting ? 'move' : 'default'};
   font-size: 0.7rem;
   box-shadow: ${props => props.$focused ? `0 0 0 2px ${props.theme.colors.warning}` : 'none'};
+  opacity: ${props => props.$collapsed ? 0.65 : 1};
 
   &:hover {
     background: ${props => {
@@ -122,6 +142,19 @@ const ComplexIntro = styled.div`
   color: ${props => props.theme.colors.danger};
 `;
 
+const CueBadge = styled.span`
+  display: inline-block;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: ${props => props.theme.colors.info}18;
+  color: ${props => props.theme.colors.info};
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid ${props => props.theme.colors.info}35;
+`;
+
 const MeetingScheduler = ({
   meetings,
   onMeetingSchedule,
@@ -146,6 +179,9 @@ const MeetingScheduler = ({
     }
     return map;
   }, [conflictDetails]);
+
+  const focusedDaysSet = useMemo(() => new Set(adaptiveMode?.focusedDays || []), [adaptiveMode]);
+  const collapseInactive = adaptiveMode?.collapseInactiveDays && focusedDaysSet.size > 0;
 
   const blockNewDrags = highlightConflicts && Object.keys(conflictsByMeeting).length > 0;
 
@@ -227,9 +263,29 @@ const MeetingScheduler = ({
         <strong>Complex Constraints:</strong> Each meeting has specific day, time, and dependency requirements. Check the badges below each meeting for details.
       </ComplexIntro>
 
+      {adaptiveMode?.hint && (
+        <AdaptiveCallout>
+          {adaptiveMode.hint}
+        </AdaptiveCallout>
+      )}
+
+      {adaptiveMode?.dependencyCues?.length > 0 && (
+        <NoiseNotice>
+          {adaptiveMode.dependencyCues.map((cue, index) => (
+            <CueBadge key={index}>{cue}</CueBadge>
+          ))}
+        </NoiseNotice>
+      )}
+
+      {collapseInactive && (
+        <NoiseNotice>
+          Dimming days without conflicts to reduce visual noise. All slots remain usable.
+        </NoiseNotice>
+      )}
+
       <CalendarGrid>
         {days.map(day => (
-          <DayColumn key={day}>
+          <DayColumn key={day} $collapsed={collapseInactive && !focusedDaysSet.has(day)}>
             <DayHeader>Day {day}</DayHeader>
             {hours.map(hour => {
               const meeting = getMeetingInSlot(day, hour);
@@ -248,6 +304,7 @@ const MeetingScheduler = ({
                   onDragOver={handleDragOver}
                   $conflict={slotConflict}
                   $focused={slotFocused}
+                  $collapsed={collapseInactive && !focusedDaysSet.has(day)}
                 >
                   {meeting ? (
                     isStart ? (

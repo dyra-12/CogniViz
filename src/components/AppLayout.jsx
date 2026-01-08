@@ -37,7 +37,8 @@ const AppLayout = () => {
           <Route path="/cognitive-demo" element={<CognitiveLoadDemo />} />
           <Route path="/task1" element={consentGiven ? (currentTask === 1 ? <Task1 /> : <Navigate to={`/task${currentTask}`} replace />) : <Navigate to="/consent" replace />} />
           <Route path="/task2" element={consentGiven ? (currentTask === 2 ? <Task2 /> : <Navigate to={`/task${currentTask}`} replace />) : <Navigate to="/consent" replace />} />
-          <Route path="/task3" element={consentGiven ? (currentTask === 3 ? <Task3 /> : <Navigate to={`/task${currentTask}`} replace />) : <Navigate to="/consent" replace />} />
+          {/* TEMP: Allow direct Task 3 access for dev/testing */}
+          <Route path="/task3" element={consentGiven ? <Task3 /> : <Task3 />} />
           <Route path="/task4" element={<CompletionPage />} />
           <Route path="/complete" element={<CompletionPage />} />
           <Route path="*" element={<Navigate to={`/task${currentTask}`} replace />} />

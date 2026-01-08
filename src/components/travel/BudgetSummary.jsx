@@ -8,8 +8,13 @@ const BudgetContainer = styled.div`
   border: 2px solid ${props => props.$highlighted ? props.theme.colors.info : 'transparent'};
   margin-bottom: ${props => props.theme.spacing[6]};
   position: sticky;
-  top: ${props => props.theme.spacing[4]};
+  top: ${props => props.$variant === 'inline' ? props.theme.spacing[2] : props.theme.spacing[4]};
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  z-index: ${props => props.$variant === 'inline' ? 15 : 'auto'};
+  max-width: ${props => props.$variant === 'inline' ? '420px' : 'auto'};
+  width: ${props => props.$variant === 'inline' ? '100%' : 'auto'};
+  margin-left: ${props => props.$variant === 'inline' ? 'auto' : '0'};
+  margin-right: ${props => props.$variant === 'inline' ? 'auto' : '0'};
 `;
 
 const BudgetItem = styled.div`
@@ -32,29 +37,79 @@ const Remaining = styled(BudgetItem)`
   font-size: ${props => props.theme.fontSizes.lg};
 `;
 
-const BudgetSummary = ({ flight, hotel, transport, total, remaining, highlight = false }) => {
+const DeltaTag = styled.span`
+  margin-left: ${props => props.theme.spacing[1]};
+  color: ${props => props.$increase ? props.theme.colors.danger : props.theme.colors.success};
+  font-weight: 700;
+  font-size: 0.8rem;
+`;
+
+const BudgetSummary = ({
+  flight,
+  returnFlight,
+  hotel,
+  transport,
+  total,
+  remaining,
+  highlight = false,
+  deltas = {},
+  variant = 'sidebar'
+}) => {
+  const formatDelta = (value) => {
+    if (typeof value !== 'number' || value === 0) return null;
+    const increase = value > 0;
+    const dollars = Math.abs(value).toLocaleString();
+    return (
+      <DeltaTag $increase={increase}>
+        {increase ? '+' : '−'}${dollars}
+      </DeltaTag>
+    );
+  };
+
+  const totalDelta = (deltas.outboundFlight || 0) + (deltas.returnFlight || 0) + (deltas.hotel || 0) + (deltas.transport || 0);
+
   return (
-    <BudgetContainer $highlighted={highlight}>
+    <BudgetContainer $highlighted={highlight} $variant={variant}>
       <h3>Budget Summary</h3>
       
       <BudgetItem>
-        <span>Flight:</span>
-        <span>{flight ? `$${flight.price}` : 'Not selected'}</span>
+        <span>Outbound Flight:</span>
+        <span>
+          {flight ? `$${flight.price}` : 'Not selected'}
+          {formatDelta(deltas.outboundFlight)}
+        </span>
+      </BudgetItem>
+
+      <BudgetItem>
+        <span>Return Flight:</span>
+        <span>
+          {returnFlight ? `$${returnFlight.price}` : 'Not selected'}
+          {formatDelta(deltas.returnFlight)}
+        </span>
       </BudgetItem>
       
       <BudgetItem>
         <span>Hotel (3 nights):</span>
-        <span>{hotel ? `$${hotel.totalPrice}` : 'Not selected'}</span>
+        <span>
+          {hotel ? `$${hotel.totalPrice}` : 'Not selected'}
+          {formatDelta(deltas.hotel)}
+        </span>
       </BudgetItem>
       
       <BudgetItem>
         <span>Transportation:</span>
-        <span>{transport ? `$${transport.price}` : 'Not selected'}</span>
+        <span>
+          {transport ? `$${transport.price}` : 'Not selected'}
+          {formatDelta(deltas.transport)}
+        </span>
       </BudgetItem>
       
       <Total>
         <span>Total Cost:</span>
-        <span>${total}</span>
+        <span>
+          ${total}
+          {formatDelta(totalDelta)}
+        </span>
       </Total>
       
       <Remaining remaining={remaining}>

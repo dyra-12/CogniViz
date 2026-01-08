@@ -40,14 +40,17 @@ const Td = styled.td`
 
 const Tr = styled.tr`
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, opacity 0.2s ease, border-left 0.2s ease;
+  background: ${props => props.$violating ? `${props.theme.colors.danger}12` : 'transparent'};
+  opacity: ${props => props.$muted ? 0.55 : 1};
+  border-left: ${props => props.$focused ? `4px solid ${props.theme.colors.warning}` : '0'};
   
   &:hover {
-    background: ${props => props.theme.colors.gray50};
+    background: ${props => props.$violating ? `${props.theme.colors.danger}18` : props.theme.colors.gray50};
   }
   
   &.selected {
-    background: ${props => props.theme.colors.primary}15;
+    background: ${props => props.$violating ? `${props.theme.colors.danger}18` : `${props.theme.colors.primary}15`};
     border: 2px solid ${props => props.theme.colors.primary};
   }
 `;
@@ -65,9 +68,41 @@ const SelectButton = styled.button`
     background: ${props => props.theme.colors.primary};
     color: ${props => props.theme.colors.white};
   }
+
+  &:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
 `;
 
-const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constraint, onFlightHoverStart, onFlightHoverEnd, onComponentEnter }) => {
+const ViolationBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: ${props => props.theme.colors.danger}15;
+  border: 1px solid ${props => props.theme.colors.danger}40;
+  color: ${props => props.theme.colors.danger};
+  font-size: 0.65rem;
+  font-weight: 600;
+  width: fit-content;
+`;
+
+const FlightBooking = ({
+  flights,
+  onFlightSelect,
+  selectedFlight,
+  title,
+  constraint,
+  onFlightHoverStart,
+  onFlightHoverEnd,
+  onComponentEnter,
+  adaptiveMode,
+  focusKey,
+  constraintLabels = {},
+  selectionLocked = false,
+  deemphasizeNonViable = false
+}) => {
   const formatTime = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
@@ -84,7 +119,7 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constra
   );
 
   return (
-  <Container onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Flights'); }}>
+    <Container onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Flights'); }}>
       <Title>{title}</Title>
       <Constraint highlight={highlight}>{constraint}</Constraint>
 
@@ -101,14 +136,31 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constra
           </tr>
         </thead>
         <tbody>
-          {flights.map(flight => (
-            <Tr 
+          {flights.map(flight => {
+            const labels = constraintLabels[flight.id] || [];
+            const violating = labels.length > 0;
+            const focusActive = Array.isArray(adaptiveMode?.focusTargets) && adaptiveMode.focusTargets.includes(focusKey);
+            const focusedRow = focusActive && violating;
+            const muted = deemphasizeNonViable && violating && !focusedRow;
+            const lockButton = selectionLocked && adaptiveMode?.domain === 'flight' && deemphasizeNonViable && !focusedRow;
+            return (
+              <Tr 
               key={flight.id} 
               className={selectedFlight?.id === flight.id ? 'selected' : ''}
               onMouseEnter={() => { if (typeof onFlightHoverStart === 'function') onFlightHoverStart(flight); }}
               onMouseLeave={() => { if (typeof onFlightHoverEnd === 'function') onFlightHoverEnd(flight); }}
+              $violating={violating}
+              $focused={focusedRow}
+              $muted={muted}
             >
-              <Td>{flight.airline}</Td>
+              <Td>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span>{flight.airline}</span>
+                  {labels.map((label, index) => (
+                    <ViolationBadge key={index}>{label}</ViolationBadge>
+                  ))}
+                </div>
+              </Td>
               <Td>{formatTime(flight.departureTime)}</Td>
               <Td>{formatTime(flight.arrivalTime)}</Td>
               <Td>{formatDuration(flight.duration)}</Td>
@@ -117,13 +169,15 @@ const FlightBooking = ({ flights, onFlightSelect, selectedFlight, title, constra
               <Td>
                 <SelectButton
                   selected={selectedFlight?.id === flight.id}
+                  disabled={lockButton}
                   onClick={() => onFlightSelect(flight)}
                 >
                   {selectedFlight?.id === flight.id ? 'Selected' : 'Select'}
                 </SelectButton>
               </Td>
-            </Tr>
-          ))}
+              </Tr>
+            );
+          })}
         </tbody>
       </Table>
     </Container>

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import styled from 'styled-components';
 import Button from '../Button';
 
@@ -39,17 +40,29 @@ const DayHeader = styled.h4`
 `;
 
 const TimeSlot = styled.div`
-  border: 1px solid ${props => props.theme.colors.gray200};
+  border: ${props => props.$conflict ? `2px solid ${props.theme.colors.danger}` : `1px solid ${props.theme.colors.gray200}`};
   border-radius: ${props => props.theme.borderRadius.md};
   padding: 6px 4px;
   margin-bottom: 4px;
   min-height: 32px;
-  background: ${props => props.hasMeeting ? props.theme.colors.primary : props.theme.colors.gray50};
+  background: ${props => {
+    if (props.hasMeeting && props.$conflict) return `${props.theme.colors.danger}30`;
+    if (props.hasMeeting) return props.theme.colors.primary;
+    if (props.$conflict) return `${props.theme.colors.danger}15`;
+    return props.theme.colors.gray50;
+  }};
   color: ${props => props.hasMeeting ? props.theme.colors.white : props.theme.colors.gray700};
   cursor: ${props => props.hasMeeting ? 'move' : 'default'};
   font-size: 0.7rem;
+  box-shadow: ${props => props.$focused ? `0 0 0 2px ${props.theme.colors.warning}` : 'none'};
+
   &:hover {
-    background: ${props => props.hasMeeting ? props.theme.colors.primary : props.theme.colors.gray100};
+    background: ${props => {
+      if (props.hasMeeting && props.$conflict) return `${props.theme.colors.danger}35`;
+      if (props.hasMeeting) return props.theme.colors.primary;
+      if (props.$conflict) return `${props.theme.colors.danger}20`;
+      return props.theme.colors.gray100;
+    }};
   }
 `;
 
@@ -66,7 +79,8 @@ const MeetingItem = styled.div`
   background: ${props => props.theme.colors.warning}20;
   border: 1px solid ${props => props.theme.colors.warning};
   border-radius: ${props => props.theme.borderRadius.md};
-  cursor: move;
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'move'};
+  opacity: ${props => props.$disabled ? 0.5 : 1};
   font-size: ${props => props.theme.fontSizes.sm};
   
   &:hover {
@@ -91,16 +105,55 @@ const ConstraintBadge = styled.span`
   border: 1px solid ${props => props.theme.colors.info}30;
 `;
 
+const ConflictBadge = styled.span`
+  display: inline-block;
+  background: ${props => props.theme.colors.danger}15;
+  color: ${props => props.theme.colors.danger};
+  padding: 2px 6px;
+  border-radius: 999px;
+  margin-top: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border: 1px solid ${props => props.theme.colors.danger}30;
+`;
+
 const ComplexIntro = styled.div`
   margin-bottom: ${props => props.theme.spacing[4]};
   color: ${props => props.theme.colors.danger};
 `;
 
-const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onMeetingDropAttempt, onComponentEnter, onResetMeetings }) => {
+const MeetingScheduler = ({
+  meetings,
+  onMeetingSchedule,
+  onMeetingDragStart,
+  onMeetingDropAttempt,
+  onComponentEnter,
+  onResetMeetings,
+  conflictDetails,
+  adaptiveMode,
+  highlightConflicts = false
+}) => {
   const days = [1, 2, 3, 4];
   const hours = [9, 10, 11, 12, 13, 14, 15, 16]; // 9AM-4PM
 
+  const conflictsByMeeting = conflictDetails?.conflictsByMeeting || {};
+  const conflictSlotMap = useMemo(() => {
+    const map = new Map();
+    if (conflictDetails?.conflictSlots) {
+      conflictDetails.conflictSlots.forEach(slot => {
+        map.set(`${slot.day}-${slot.hour}`, slot);
+      });
+    }
+    return map;
+  }, [conflictDetails]);
+
+  const blockNewDrags = highlightConflicts && Object.keys(conflictsByMeeting).length > 0;
+
   const handleDragStart = (e, meeting) => {
+    if (blockNewDrags && !meeting.scheduled) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('meetingId', meeting.id);
     if (typeof onMeetingDragStart === 'function') {
       try { onMeetingDragStart(meeting.id); } catch (err) { /* ignore */ }
@@ -181,12 +234,20 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onM
             {hours.map(hour => {
               const meeting = getMeetingInSlot(day, hour);
               const isStart = meeting && meeting.startTime === hour;
+              const slotKey = `${day}-${hour}`;
+              const slotEntry = conflictSlotMap.get(slotKey);
+              const slotConflict = highlightConflicts && Boolean(slotEntry);
+              const slotFocused = slotConflict && Array.isArray(adaptiveMode?.focusTargets) && (
+                adaptiveMode.focusTargets.includes('meetingSchedule') || (slotEntry?.types || []).some(type => adaptiveMode.focusTargets.includes(type))
+              );
               return (
                 <TimeSlot
                   key={hour}
                   hasMeeting={!!meeting}
                   onDrop={(e) => handleDrop(e, day, hour)}
                   onDragOver={handleDragOver}
+                  $conflict={slotConflict}
+                  $focused={slotFocused}
                 >
                   {meeting ? (
                     isStart ? (
@@ -198,6 +259,9 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onM
                             <ConstraintBadge key={index}>{badge}</ConstraintBadge>
                           ))}
                         </div>
+                        {highlightConflicts && conflictsByMeeting[meeting.id] && conflictsByMeeting[meeting.id].map((conflict, index) => (
+                          <ConflictBadge key={index}>{conflict.message}</ConflictBadge>
+                        ))}
                       </div>
                     ) : (
                       <div style={{ opacity: 0.85, fontStyle: 'italic' }}>Continued: {meeting.title}</div>
@@ -218,7 +282,8 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onM
           {unscheduledMeetings.map(meeting => (
             <MeetingItem
               key={meeting.id}
-              draggable
+              draggable={!blockNewDrags}
+              $disabled={blockNewDrags}
               onDragStart={(e) => handleDragStart(e, meeting)}
             >
               <div><strong>{meeting.title}</strong> ({meeting.duration}h)</div>
@@ -229,6 +294,11 @@ const MeetingScheduler = ({ meetings, onMeetingSchedule, onMeetingDragStart, onM
               </MeetingConstraints>
             </MeetingItem>
           ))}
+          {blockNewDrags && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#b91c1c', fontWeight: 600 }}>
+              Resolve highlighted conflicts before adding new meetings.
+            </div>
+          )}
         </UnscheduledMeetings>
       )}
     </SchedulerContainer>

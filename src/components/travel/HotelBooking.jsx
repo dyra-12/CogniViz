@@ -11,6 +11,31 @@ const HotelContainer = styled.div`
   margin-bottom: ${props => props.theme.spacing[6]};
 `;
 
+const AdaptiveHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${props => props.theme.spacing[3]};
+`;
+
+const BudgetPill = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: ${props => props.theme.colors.info}15;
+  color: ${props => props.theme.colors.info};
+  font-weight: 700;
+  font-size: 0.85rem;
+`;
+
+const Hint = styled.div`
+  margin-bottom: ${props => props.theme.spacing[3]};
+  color: ${props => props.theme.colors.info};
+  font-weight: 600;
+`;
+
 //////////
 const Th = styled.th`
   text-align: left;
@@ -22,6 +47,9 @@ const Tr = styled.tr`
   &.selected {
     background: ${props => props.theme.colors.gray[100]};
   }
+  opacity: ${props => props.$dimmed ? 0.45 : 1};
+  pointer-events: ${props => props.$dimmed ? 'auto' : 'auto'};
+  transition: opacity 0.2s ease;
 `;
 
 const Td = styled.td`
@@ -67,19 +95,67 @@ const HotelConstraints = styled.div`
   color: ${props => props.theme.colors.danger};
 `;
 
+const PinnedContext = styled.div`
+  margin-bottom: ${props => props.theme.spacing[3]};
+  padding: ${props => props.theme.spacing[3]};
+  border: 1px dashed ${props => props.theme.colors.info};
+  border-radius: ${props => props.theme.borderRadius.md};
+  background: ${props => props.theme.colors.info}10;
+  color: ${props => props.theme.colors.info};
+  font-weight: 600;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const DeltaTag = styled.span`
+  color: ${props => props.$over ? props.theme.colors.danger : props.theme.colors.success};
+  font-weight: 700;
+`;
+
 // ---------- Component ----------
-const HotelBooking = ({ hotels, onHotelSelect, selectedHotel, onHotelHoverStart, onHotelHoverEnd, onComponentEnter }) => {
+const HotelBooking = ({ hotels, onHotelSelect, selectedHotel, onHotelHoverStart, onHotelHoverEnd, onComponentEnter, adaptiveMode, remainingBudget = 0, projectedBudgetMap = {} }) => {
   const renderStars = (count) => {
     return '★'.repeat(count) + ` (${count})`;
   };
 
+  const isAdaptive = Boolean(adaptiveMode);
+
+  const tripWindow = 'Jan 15 - Jan 18';
+  const showPinned = isAdaptive;
+  const hint = adaptiveMode?.hint;
+
   return (
   <HotelContainer onMouseEnter={() => { if (typeof onComponentEnter === 'function') onComponentEnter('Hotels'); }}>
-      <h3>Book Your Hotel (3 nights)</h3>
+      <AdaptiveHeader>
+        <h3>Book Your Hotel (3 nights)</h3>
+        {isAdaptive && (
+          <BudgetPill>
+            Remaining: ${remainingBudget}
+          </BudgetPill>
+        )}
+      </AdaptiveHeader>
 
       <HotelConstraints>
         <strong>Constraints:</strong> 3+ stars, within 5km of Conference Center
       </HotelConstraints>
+
+      {showPinned && (
+        <PinnedContext>
+          <span>Stay window: {tripWindow}</span>
+          <span>Current hotel cost: ${selectedHotel?.totalPrice || 0}</span>
+          <span>Remaining budget: ${remainingBudget}</span>
+          {remainingBudget < 0 && (
+            <DeltaTag $over>
+              {`Over by $${Math.abs(remainingBudget)}`}
+            </DeltaTag>
+          )}
+        </PinnedContext>
+      )}
+
+      {hint && (
+        <Hint>{hint}</Hint>
+      )}
 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
         <thead>
@@ -97,6 +173,7 @@ const HotelBooking = ({ hotels, onHotelSelect, selectedHotel, onHotelHoverStart,
             <Tr
               key={hotel.id}
               className={selectedHotel?.id === hotel.id ? 'selected' : ''}
+              $dimmed={isAdaptive && (projectedBudgetMap[hotel.id] || false)}
               onMouseEnter={() => { if (typeof onHotelHoverStart === 'function') onHotelHoverStart(hotel); }}
               onMouseLeave={() => { if (typeof onHotelHoverEnd === 'function') onHotelHoverEnd(hotel); }}
             >
@@ -111,7 +188,14 @@ const HotelBooking = ({ hotels, onHotelSelect, selectedHotel, onHotelHoverStart,
                 </Distance>
               </Td>
               <Td>${hotel.pricePerNight}</Td>
-              <Td>${hotel.totalPrice}</Td>
+              <Td>
+                ${hotel.totalPrice}
+                {isAdaptive && projectedBudgetMap[hotel.id] && (
+                  <DeltaTag $over style={{ marginLeft: 6 }}>
+                    Over budget if selected
+                  </DeltaTag>
+                )}
+              </Td>
               <Td>
                 <SelectButton
                   selected={selectedHotel?.id === hotel.id}

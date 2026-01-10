@@ -59,25 +59,38 @@ const DayHeader = styled.h4`
 `;
 
 const TimeSlot = styled.div`
-  border: ${props => props.$conflict ? `2px solid ${props.theme.colors.danger}` : `1px solid ${props.theme.colors.gray200}`};
+  border: ${props => {
+    if (props.$attemptedViolation) return `2px solid ${props.theme.colors.danger}`;
+    if (props.$conflict) return `2px solid ${props.theme.colors.danger}`;
+    return `1px solid ${props.theme.colors.gray200}`;
+  }};
   border-radius: ${props => props.theme.borderRadius.md};
   padding: 6px 4px;
   margin-bottom: 4px;
   min-height: 32px;
   background: ${props => {
+    if (props.$attemptedViolation) return `${props.theme.colors.danger}12`;
     if (props.hasMeeting && props.$conflict) return `${props.theme.colors.danger}30`;
     if (props.hasMeeting) return props.theme.colors.primary;
     if (props.$conflict) return `${props.theme.colors.danger}15`;
     return props.theme.colors.gray50;
   }};
-  color: ${props => props.hasMeeting ? props.theme.colors.white : props.theme.colors.gray700};
+  color: ${props => {
+    if (props.$attemptedViolation) return props.theme.colors.danger;
+    return props.hasMeeting ? props.theme.colors.white : props.theme.colors.gray700;
+  }};
   cursor: ${props => props.hasMeeting ? 'move' : 'default'};
   font-size: 0.7rem;
-  box-shadow: ${props => props.$focused ? `0 0 0 2px ${props.theme.colors.warning}` : 'none'};
+  box-shadow: ${props => {
+    if (props.$attemptedViolation) return `0 0 0 2px ${props.theme.colors.danger}40`;
+    return props.$focused ? `0 0 0 2px ${props.theme.colors.warning}` : 'none';
+  }};
   opacity: ${props => props.$collapsed ? 0.65 : 1};
+  position: relative;
 
   &:hover {
     background: ${props => {
+      if (props.$attemptedViolation) return `${props.theme.colors.danger}18`;
       if (props.hasMeeting && props.$conflict) return `${props.theme.colors.danger}35`;
       if (props.hasMeeting) return props.theme.colors.primary;
       if (props.$conflict) return `${props.theme.colors.danger}20`;
@@ -96,15 +109,19 @@ const UnscheduledMeetings = styled.div`
 const MeetingItem = styled.div`
   padding: ${props => props.theme.spacing[3]};
   margin-bottom: ${props => props.theme.spacing[2]};
-  background: ${props => props.theme.colors.warning}20;
-  border: 1px solid ${props => props.theme.colors.warning};
+  background: ${props => props.$violated ? `${props.theme.colors.danger}12` : `${props.theme.colors.warning}20`};
+  border: ${props => props.$violated
+    ? `2px solid ${props.theme.colors.danger}`
+    : `1px solid ${props.theme.colors.warning}`};
   border-radius: ${props => props.theme.borderRadius.md};
   cursor: ${props => props.$disabled ? 'not-allowed' : 'move'};
   opacity: ${props => props.$disabled ? 0.5 : 1};
   font-size: ${props => props.theme.fontSizes.sm};
+  box-shadow: ${props => props.$violated ? `0 0 0 2px ${props.theme.colors.danger}25` : 'none'};
+  transition: background 0.2s ease, box-shadow 0.2s ease;
   
   &:hover {
-    background: ${props => props.theme.colors.warning}30;
+    background: ${props => props.$violated ? `${props.theme.colors.danger}20` : `${props.theme.colors.warning}30`};
   }
 `;
 
@@ -155,6 +172,33 @@ const CueBadge = styled.span`
   border: 1px solid ${props => props.theme.colors.info}35;
 `;
 
+const ViolationNotice = styled.div`
+  margin-bottom: ${props => props.theme.spacing[3]};
+  padding: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  background: ${props => props.theme.colors.danger}12;
+  border: 1px solid ${props => props.theme.colors.danger}35;
+  color: ${props => props.theme.colors.danger};
+  font-weight: 600;
+`;
+
+const ViolationSlotNote = styled.div`
+  position: absolute;
+  inset: 2px;
+  border-radius: ${props => props.theme.borderRadius.sm};
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: ${props => props.theme.colors.danger};
+  background: rgba(255, 255, 255, 0.95);
+  text-align: center;
+  padding: 4px;
+  pointer-events: none;
+`;
+
 const MeetingScheduler = ({
   meetings,
   onMeetingSchedule,
@@ -164,7 +208,9 @@ const MeetingScheduler = ({
   onResetMeetings,
   conflictDetails,
   adaptiveMode,
-  highlightConflicts = false
+  highlightConflicts = false,
+  suppressNewDrags = false,
+  violationAttempt = null
 }) => {
   const days = [1, 2, 3, 4];
   const hours = [9, 10, 11, 12, 13, 14, 15, 16]; // 9AM-4PM
@@ -183,7 +229,11 @@ const MeetingScheduler = ({
   const focusedDaysSet = useMemo(() => new Set(adaptiveMode?.focusedDays || []), [adaptiveMode]);
   const collapseInactive = adaptiveMode?.collapseInactiveDays && focusedDaysSet.size > 0;
 
-  const blockNewDrags = highlightConflicts && Object.keys(conflictsByMeeting).length > 0;
+  const blockNewDrags = (highlightConflicts && Object.keys(conflictsByMeeting).length > 0) || suppressNewDrags;
+
+  const attemptedSlotKey = violationAttempt ? `${violationAttempt.day}-${violationAttempt.hour}` : null;
+  const attemptedMeetingId = violationAttempt?.meetingId;
+  const formatHourLabel = (value) => `${String(value).padStart(2, '0')}:00`;
 
   const handleDragStart = (e, meeting) => {
     if (blockNewDrags && !meeting.scheduled) {
@@ -263,6 +313,17 @@ const MeetingScheduler = ({
         <strong>Complex Constraints:</strong> Each meeting has specific day, time, and dependency requirements. Check the badges below each meeting for details.
       </ComplexIntro>
 
+      {violationAttempt && (
+        <ViolationNotice>
+          <div>
+            {violationAttempt.meetingTitle || 'This meeting'} can’t go in Day {violationAttempt.day} at {formatHourLabel(violationAttempt.hour)}.
+          </div>
+          <div style={{ marginTop: '4px', fontSize: '0.75rem', fontWeight: 500 }}>
+            {violationAttempt.message}
+          </div>
+        </ViolationNotice>
+      )}
+
       {adaptiveMode?.hint && (
         <AdaptiveCallout>
           {adaptiveMode.hint}
@@ -293,6 +354,7 @@ const MeetingScheduler = ({
               const slotKey = `${day}-${hour}`;
               const slotEntry = conflictSlotMap.get(slotKey);
               const slotConflict = highlightConflicts && Boolean(slotEntry);
+              const attemptedViolation = attemptedSlotKey === slotKey;
               const slotFocused = slotConflict && Array.isArray(adaptiveMode?.focusTargets) && (
                 adaptiveMode.focusTargets.includes('meetingSchedule') || (slotEntry?.types || []).some(type => adaptiveMode.focusTargets.includes(type))
               );
@@ -305,6 +367,7 @@ const MeetingScheduler = ({
                   $conflict={slotConflict}
                   $focused={slotFocused}
                   $collapsed={collapseInactive && !focusedDaysSet.has(day)}
+                  $attemptedViolation={attemptedViolation}
                 >
                   {meeting ? (
                     isStart ? (
@@ -324,7 +387,13 @@ const MeetingScheduler = ({
                       <div style={{ opacity: 0.85, fontStyle: 'italic' }}>Continued: {meeting.title}</div>
                     )
                   ) : (
-                    <span style={{ fontSize: '1rem', fontWeight: 600, paddingLeft: '10px', display: 'inline-block' }}>{hour}:00</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 600, paddingLeft: '10px', display: 'inline-block' }}>{formatHourLabel(hour)}</span>
+                  )}
+                  {attemptedViolation && (
+                    <ViolationSlotNote>
+                      <span>⚠ Attempted</span>
+                      <span>{violationAttempt?.meetingTitle || 'Meeting'}</span>
+                    </ViolationSlotNote>
                   )}
                 </TimeSlot>
               );
@@ -341,6 +410,7 @@ const MeetingScheduler = ({
               key={meeting.id}
               draggable={!blockNewDrags}
               $disabled={blockNewDrags}
+              $violated={attemptedMeetingId === meeting.id}
               onDragStart={(e) => handleDragStart(e, meeting)}
             >
               <div><strong>{meeting.title}</strong> ({meeting.duration}h)</div>
@@ -349,6 +419,9 @@ const MeetingScheduler = ({
                   <ConstraintBadge key={index}>{badge}</ConstraintBadge>
                 ))}
               </MeetingConstraints>
+              {attemptedMeetingId === meeting.id && violationAttempt?.message && (
+                <ConflictBadge>{violationAttempt.message}</ConflictBadge>
+              )}
             </MeetingItem>
           ))}
           {blockNewDrags && (

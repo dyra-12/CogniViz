@@ -214,6 +214,7 @@ const Task3 = () => {
     conflictSlots: [],
     focusedDays: [],
   });
+  const [meetingViolationAttempt, setMeetingViolationAttempt] = useState(null);
   const [costDeltas, setCostDeltas] = useState({
     outboundFlight: 0,
     returnFlight: 0,
@@ -291,6 +292,7 @@ const Task3 = () => {
     const conflictsByMeeting = {};
     const conflictSlots = [];
     const focusedDays = new Set();
+    const unmetDependencies = [];
 
     const addConflict = (meetingId, type, message, day, hour) => {
       if (!conflictsByMeeting[meetingId]) conflictsByMeeting[meetingId] = [];
@@ -336,12 +338,19 @@ const Task3 = () => {
             }
           });
         }
-      } else {
+      }
+    });
+
+    // Collect unmet dependencies as informational cues only (do not create conflicts)
+    meetings.forEach((meeting) => {
+      if (!meeting.scheduled) {
         if (meeting.constraints.mustFollow) {
-          addConflict(meeting.id, 'unscheduled_dependency', `${meeting.title} depends on another meeting first`);
+          const dep = meetings.find(m => m.id === meeting.constraints.mustFollow);
+          unmetDependencies.push(`Schedule ${dep?.title || 'prerequisite'} before ${meeting.title}.`);
         }
         if (meeting.constraints.mustPrecede) {
-          addConflict(meeting.id, 'unscheduled_dependency', `${meeting.title} needs placement before ${meeting.constraints.mustPrecede}`);
+          const dep = meetings.find(m => m.id === meeting.constraints.mustPrecede);
+          unmetDependencies.push(`Schedule ${meeting.title} before ${dep?.title || 'dependent meeting'}.`);
         }
       }
     });
@@ -349,7 +358,8 @@ const Task3 = () => {
     return {
       conflictsByMeeting,
       conflictSlots,
-      focusedDays: Array.from(focusedDays)
+      focusedDays: Array.from(focusedDays),
+      unmetDependencies
     };
   }, [meetings]);
 
@@ -492,11 +502,13 @@ const Task3 = () => {
     evaluateLoadFromSignals('violation');
   }, [evaluateLoadFromSignals]);
 
-  const recordSchedulingFailure = useCallback((reason) => {
+  const recordSchedulingFailure = useCallback((payload) => {
     const now = performance.now();
-    loadSignalsRef.current.schedulingFailures.push({ ts: now, reason });
+    const detail = typeof payload === 'string' ? { code: payload } : { ...(payload || {}) };
+    loadSignalsRef.current.schedulingFailures.push({ ts: now, ...detail });
     loadSignalsRef.current.lastFailureTs = now;
-    recordViolationEvent('scheduling_failure', reason);
+    const violationType = detail.type || 'scheduling_failure';
+    recordViolationEvent(violationType, detail);
   }, [recordViolationEvent]);
 
   const recordSuccessAction = useCallback(() => {
@@ -604,9 +616,11 @@ const Task3 = () => {
     let domain = lastInteractionRef.current || 'flight';
     if (domain === 'flight') {
       domain = 'flight';
-    } else if (activeConflicts.some(c => c.startsWith('meeting_'))) {
+    } else if (domain === 'meeting') {
       domain = 'meeting';
-    } else if (activeConflicts.includes('budget') || remainingBudget < 0) {
+    } else if (domain === 'hotel') {
+      domain = 'hotel';
+    } else if (domain === 'budget') {
       domain = 'budget';
     }
     setActiveDomain(domain);
@@ -654,7 +668,7 @@ const Task3 = () => {
   };
 
   const handleHotelSelect = (hotel) => {
-    lastInteractionRef.current = 'budget';
+    lastInteractionRef.current = 'hotel';
     updateCostTracking('hotel', hotel);
     setSelectedHotel(hotel);
     log('hotel_selected', {
@@ -737,41 +751,97 @@ const Task3 = () => {
 
   // Meeting drag/drop instrumentation: drag start -> log; drop -> validate, log attempts
   const handleMeetingDragStart = (meetingId) => {
+    setMeetingViolationAttempt(prev => (prev && prev.meetingId === meetingId ? null : prev));
     try { task3Logger.logMeetingDragStart(meetingId); } catch (e) { /* ignore */ }
     boostSimulationActivity(0.15);
   };
 
   const validateSingleMeetingPlacement = (meeting, day, hour, currentMeetings) => {
-    if (!meeting) return { valid: false, reason: 'unknown_meeting' };
-    // Allowed days
+    const fmtHour = (h) => `${String(h).padStart(2, '0')}:00`;
+    const formatDayList = (days = []) => {
+      if (!days.length) return 'the allowed days';
+      if (days.length === 1) return `Day ${days[0]}`;
+      if (days.length === 2) return `Day ${days[0]} or ${days[1]}`;
+      return `Day ${days.slice(0, -1).join(', ')} or ${days[days.length - 1]}`;
+    };
+
+    if (!meeting) {
+      return {
+        valid: false,
+        violation: {
+          code: 'unknown_meeting',
+          message: 'Unable to identify that meeting. Please retry.',
+        }
+      };
+    }
+
+    const violation = (code, message, extra = {}) => ({ code, message, ...extra });
+
     if (meeting.constraints.allowedDays && !meeting.constraints.allowedDays.includes(day)) {
-      return { valid: false, reason: 'wrong_day' };
+      const allowedLabel = formatDayList(meeting.constraints.allowedDays);
+      return { valid: false, violation: violation('wrong_day', `${meeting.title} is limited to ${allowedLabel}. Try a slot on ${allowedLabel}.`) };
     }
-    // Time range
+
     if (meeting.constraints.timeRange) {
-      if (hour < meeting.constraints.timeRange.start || (hour + meeting.duration) > meeting.constraints.timeRange.end) {
-        return { valid: false, reason: 'time_conflict' };
+      const windowStart = meeting.constraints.timeRange.start;
+      const windowEnd = meeting.constraints.timeRange.end;
+      const meetingEnd = hour + meeting.duration;
+      if (hour < windowStart || meetingEnd > windowEnd) {
+        return {
+          valid: false,
+          violation: violation('time_window', `${meeting.title} must fit between ${fmtHour(windowStart)} and ${fmtHour(windowEnd)}.`)
+        };
       }
     }
-    // mustFollow
+
+    const conflicting = currentMeetings.find(other => (
+      other.id !== meeting.id &&
+      other.scheduled &&
+      other.day === day &&
+      !(hour + meeting.duration <= other.startTime || hour >= other.startTime + other.duration)
+    ));
+    if (conflicting) {
+      return {
+        valid: false,
+        violation: violation(
+          'occupied_slot',
+          `${conflicting.title} already uses ${fmtHour(conflicting.startTime)}-${fmtHour(conflicting.startTime + conflicting.duration)} on Day ${day}.`
+        )
+      };
+    }
+
     if (meeting.constraints.mustFollow) {
-      const followed = currentMeetings.find(m => m.id === meeting.constraints.mustFollow);
-      if (followed && followed.scheduled) {
-        if (day < followed.day || (day === followed.day && hour <= followed.startTime + followed.duration)) {
-          return { valid: false, reason: 'must_follow' };
-        }
+      const prerequisite = currentMeetings.find(m => m.id === meeting.constraints.mustFollow);
+      if (!prerequisite || !prerequisite.scheduled) {
+        return {
+          valid: false,
+          violation: violation('missing_prerequisite', `Schedule ${prerequisite?.title || 'the prerequisite meeting'} before placing ${meeting.title}.`)
+        };
+      }
+      const prerequisiteEnd = prerequisite.startTime + prerequisite.duration;
+      const violatesOrder = day < prerequisite.day || (day === prerequisite.day && hour <= prerequisiteEnd);
+      if (violatesOrder) {
+        return {
+          valid: false,
+          violation: violation('must_follow_order', `${meeting.title} must start after ${prerequisite.title} finishes at ${fmtHour(prerequisiteEnd)} on Day ${prerequisite.day}.`)
+        };
       }
     }
-    // mustPrecede
+
     if (meeting.constraints.mustPrecede) {
-      const preceded = currentMeetings.find(m => m.id === meeting.constraints.mustPrecede);
-      if (preceded && preceded.scheduled) {
-        if (day > preceded.day || (day === preceded.day && (hour + meeting.duration) >= preceded.startTime)) {
-          return { valid: false, reason: 'must_precede' };
+      const dependent = currentMeetings.find(m => m.id === meeting.constraints.mustPrecede);
+      if (dependent && dependent.scheduled) {
+        const meetingEnd = hour + meeting.duration;
+        const violatesOrder = day > dependent.day || (day === dependent.day && meetingEnd >= dependent.startTime);
+        if (violatesOrder) {
+          return {
+            valid: false,
+            violation: violation('must_precede_order', `${meeting.title} has to finish before ${dependent.title} begins at ${fmtHour(dependent.startTime)} on Day ${dependent.day}.`)
+          };
         }
       }
     }
-    // cannot overlap
+
     if (meeting.constraints.cannotOverlapWith) {
       for (const otherId of meeting.constraints.cannotOverlapWith) {
         const other = currentMeetings.find(m => m.id === otherId);
@@ -779,35 +849,71 @@ const Task3 = () => {
           const meetingEnd = hour + meeting.duration;
           const otherEnd = other.startTime + other.duration;
           if (!(meetingEnd <= other.startTime || hour >= otherEnd)) {
-            return { valid: false, reason: 'time_conflict' };
+            return {
+              valid: false,
+              violation: violation('no_overlap', `${meeting.title} cannot overlap with ${other.title}. That slot collides with their ${fmtHour(other.startTime)}-${fmtHour(otherEnd)} block.`)
+            };
           }
         }
       }
     }
-    return { valid: true, reason: null };
+
+    return { valid: true, violation: null };
   };
 
   const handleMeetingDropAttempt = (meetingId, day, hour) => {
     lastInteractionRef.current = 'meeting';
     const meeting = meetings.find(m => m.id === meetingId);
-    const { valid, reason } = validateSingleMeetingPlacement(meeting, day, hour, meetings);
+    const { valid, violation } = validateSingleMeetingPlacement(meeting, day, hour, meetings);
     if (valid) {
       setMeetings(prev => prev.map(m => m.id === meetingId ? { ...m, scheduled: true, day, startTime: hour } : m));
       log('meeting_scheduled', { meeting: meeting?.title, day, startTime: hour });
       try { task3Logger.logMeetingDropAttempt(meetingId, day, hour, true); } catch (e) { /* ignore */ }
       boostSimulationActivity(0.25);
       // remove any prior validationErrors related to this meeting
-      setValidationErrors(prev => prev.filter(msg => typeof msg === 'string' ? !msg.includes(meetingId) : true));
+      setValidationErrors(prev => {
+        if (!meeting?.title) return prev;
+        return prev.filter(msg => typeof msg !== 'string' || !msg.includes(meeting.title));
+      });
+      setMeetingViolationAttempt(prev => (prev && prev.meetingId === meetingId ? null : prev));
       recordSuccessAction();
     } else {
       // Log failed attempt
-      log('meeting_schedule_attempt_failed', { meetingId, day, hour, reason });
-      try { task3Logger.logMeetingDropAttempt(meetingId, day, hour, false, reason); } catch (e) { /* ignore */ }
+      const violationPayload = violation || { code: 'unknown', message: 'Unable to place this meeting in that slot.' };
+      log('meeting_schedule_attempt_failed', {
+        meetingId,
+        meetingTitle: meeting?.title,
+        day,
+        hour,
+        violationCode: violationPayload.code,
+        message: violationPayload.message
+      });
+      try { task3Logger.logMeetingDropAttempt(meetingId, day, hour, false, violationPayload.code); } catch (e) { /* ignore */ }
       try { task3Logger.incrementError(); } catch (e) { /* ignore */ }
-      // show error to user by appending to validationErrors with meeting id so we can remove later
-      setValidationErrors(prev => [...prev, `Failed to place meeting ${meetingId}: ${reason}`]);
+      // show error to user with contextual explanation
+      setValidationErrors(prev => {
+        const cleaned = meeting?.title
+          ? prev.filter(msg => typeof msg !== 'string' || !msg.includes(meeting.title))
+          : prev;
+        return [...cleaned, violationPayload.message];
+      });
+      setMeetingViolationAttempt({
+        meetingId,
+        meetingTitle: meeting?.title,
+        day,
+        hour,
+        code: violationPayload.code,
+        message: violationPayload.message,
+        ts: Date.now()
+      });
       boostSimulationActivity(0.15);
-      recordSchedulingFailure(reason);
+      recordSchedulingFailure({
+        type: 'meeting_violation',
+        code: violationPayload.code,
+        meetingId,
+        day,
+        hour
+      });
     }
   };
 
@@ -1107,6 +1213,7 @@ const Task3 = () => {
 
   const meetingAdaptiveActive = adaptiveActive && activeDomain === 'meeting';
   const flightAdaptiveActive = adaptiveActive && activeDomain === 'flight';
+  const hotelAdaptiveActive = adaptiveActive && activeDomain === 'hotel';
   const constraintViolationsDominant = useMemo(() => {
     const now = performance.now();
     const windowMs = 12000;
@@ -1123,39 +1230,72 @@ const Task3 = () => {
   const returnAdaptiveRender = flightAdaptiveActive && activeFlightSubtask === 'return';
   const budgetAdaptiveActive = adaptiveActive && activeDomain === 'budget';
 
+  const hotelBudgetAnchor = useMemo(() => {
+    const hotelCost = selectedHotel?.totalPrice || 0;
+    return {
+      hotelCost,
+      remainingBudget,
+      delta: remainingBudget < 0 ? remainingBudget : 0,
+    };
+  }, [remainingBudget, selectedHotel]);
+
+  const hotelOptionBudgetViolations = useMemo(() => {
+    const map = {};
+    hotels.forEach(hotel => {
+      const projected = 1380 - ((totalCost - (selectedHotel?.totalPrice || 0)) + hotel.totalPrice);
+      map[hotel.id] = projected < 0;
+    });
+    return map;
+  }, [hotels, selectedHotel, totalCost]);
+
+  const hotelAdaptiveRender = hotelAdaptiveActive && (remainingBudget < 0 || Object.values(hotelOptionBudgetViolations).some(Boolean));
+
+  const meetingConflictsPresent = meetingAdaptiveActive && Object.keys(meetingConflictDetails.conflictsByMeeting || {}).length > 0;
+  const unmetDependencyCues = useMemo(() => {
+    return Array.from(new Set(meetingConflictDetails.unmetDependencies || [])).slice(0, 3);
+  }, [meetingConflictDetails.unmetDependencies]);
+
   const meetingFocusTargets = useMemo(() => {
-    if (!meetingAdaptiveActive) return [];
+    if (!meetingConflictsPresent) return [];
     const targets = ['meetingSchedule'];
     (meetingConflictDetails.conflictSlots || []).forEach(slot => {
       if (Array.isArray(slot.types)) targets.push(...slot.types);
     });
     return Array.from(new Set(targets));
-  }, [meetingAdaptiveActive, meetingConflictDetails]);
+  }, [meetingConflictsPresent, meetingConflictDetails]);
 
   const meetingAdaptiveHint = useMemo(() => {
-    if (!meetingAdaptiveActive) return '';
+    if (!meetingConflictsPresent) return '';
     const firstMeetingConflicts = Object.values(meetingConflictDetails.conflictsByMeeting || {})[0];
     if (firstMeetingConflicts && firstMeetingConflicts.length > 0) {
       return firstMeetingConflicts[0].message;
+    }
+    const firstSlot = (meetingConflictDetails.conflictSlots || [])[0];
+    if (firstSlot) {
+      return `Try moving the highlighted meeting before Day ${firstSlot.day} at ${firstSlot.hour}:00 to resolve the dependency.`;
     }
     if (meetingConflictDetails.focusedDays && meetingConflictDetails.focusedDays.length > 0) {
       return 'Try adjusting the highlighted day and resolve dependency cues first.';
     }
     return 'Try scheduling prerequisite meetings before placing dependents.';
-  }, [meetingAdaptiveActive, meetingConflictDetails]);
+  }, [meetingConflictsPresent, meetingConflictDetails]);
 
   const dependencyCues = useMemo(() => {
-    if (!meetingAdaptiveActive) return [];
     const cues = [];
-    Object.values(meetingConflictDetails.conflictsByMeeting || {}).forEach(list => {
-      list.forEach(item => {
-        if (item.type === 'must_follow' || item.type === 'must_precede' || item.type === 'unscheduled_dependency') {
-          cues.push(item.message);
-        }
+    // conflicts-based cues
+    if (meetingConflictsPresent) {
+      Object.values(meetingConflictDetails.conflictsByMeeting || {}).forEach(list => {
+        list.forEach(item => {
+          if (item.type === 'must_follow' || item.type === 'must_precede') {
+            cues.push(item.message);
+          }
+        });
       });
-    });
-    return Array.from(new Set(cues)).slice(0, 3);
-  }, [meetingAdaptiveActive, meetingConflictDetails]);
+    }
+    // informational unmet dependencies (do not trigger conflicts)
+    cues.push(...unmetDependencyCues);
+    return Array.from(new Set(cues)).slice(0, 4);
+  }, [meetingConflictsPresent, meetingConflictDetails, unmetDependencyCues]);
 
   const budgetParts = useMemo(() => ({
     outboundFlight: costForSelection('outboundFlight', selectedOutboundFlight),
@@ -1229,12 +1369,19 @@ const Task3 = () => {
     lockViolations: returnIntervention
   } : null;
 
-  const meetingAdaptiveMode = meetingAdaptiveActive ? {
-    focusTargets: meetingFocusTargets,
-    hint: meetingAdaptiveHint,
-    collapseInactiveDays: true,
+  const meetingAdaptiveMode = (meetingConflictsPresent || unmetDependencyCues.length > 0) ? {
+    focusTargets: meetingConflictsPresent ? meetingFocusTargets : [],
+    hint: meetingConflictsPresent ? meetingAdaptiveHint : (unmetDependencyCues[0] || ''),
+    collapseInactiveDays: meetingConflictsPresent,
     dependencyCues,
-    focusedDays: meetingConflictDetails.focusedDays
+    focusedDays: meetingConflictsPresent ? meetingConflictDetails.focusedDays : [],
+    suppressNewDrags: meetingConflictsPresent
+  } : null;
+
+  const hotelAdaptiveMode = hotelAdaptiveRender ? {
+    hint: remainingBudget < 0 ? 'This selection exceeds the remaining accommodation budget.' : 'This option strains the budget window.',
+    budgetAnchor: hotelBudgetAnchor,
+    optionBudgetViolations: hotelOptionBudgetViolations,
   } : null;
 
   return (
@@ -1302,6 +1449,9 @@ const Task3 = () => {
             onHotelHoverStart={handleHotelHoverStart}
             onHotelHoverEnd={handleHotelHoverEnd}
             onComponentEnter={handleComponentEnter}
+            adaptiveMode={hotelAdaptiveMode}
+            remainingBudget={remainingBudget}
+            projectedBudgetMap={hotelOptionBudgetViolations}
           />
           
           <TransportSelection
@@ -1321,7 +1471,9 @@ const Task3 = () => {
             onResetMeetings={handleResetMeetings}
             conflictDetails={meetingConflictDetails}
             adaptiveMode={meetingAdaptiveMode}
-            highlightConflicts={meetingAdaptiveActive}
+            highlightConflicts={meetingConflictsPresent}
+            suppressNewDrags={meetingAdaptiveMode?.suppressNewDrags}
+            violationAttempt={meetingViolationAttempt}
           />
         </MainContent>
 

@@ -300,9 +300,9 @@ const MeetingScheduler = ({
         <h3>Schedule Your Meetings</h3>
         {onResetMeetings && (
           <Button 
-            variant="secondary" 
+            variant="outline" 
             onClick={onResetMeetings}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '600' }}
           >
             🔄 Start from Beginning
           </Button>
@@ -322,12 +322,6 @@ const MeetingScheduler = ({
             {violationAttempt.message}
           </div>
         </ViolationNotice>
-      )}
-
-      {adaptiveMode?.hint && (
-        <AdaptiveCallout>
-          {adaptiveMode.hint}
-        </AdaptiveCallout>
       )}
 
       {adaptiveMode?.dependencyCues?.length > 0 && (

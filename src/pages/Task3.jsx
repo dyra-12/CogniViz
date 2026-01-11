@@ -48,10 +48,26 @@ const MainContent = styled.div`
 const Sidebar = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${props => props.theme.spacing[6]};
+  gap: ${props => props.theme.spacing[3]};
   position: sticky;
-  top: ${props => props.theme.spacing[8]};
+  top: ${props => props.theme.spacing[3]};
   height: fit-content;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.theme.colors.gray300};
+    border-radius: 3px;
+  }
 `;
 
 const CompletionMessage = styled.div`
@@ -1159,8 +1175,15 @@ const Task3 = () => {
     const labels = {};
     flights.forEach((flight) => {
       const flightLabels = [];
-      if (flight.type === 'outbound' && flight.arrivalTime.getHours() >= 15) {
-        flightLabels.push('Arrives after 15:00 requirement');
+      if (flight.type === 'outbound') {
+        const arrivalHour = flight.arrivalTime.getHours();
+        const arrivalMinute = flight.arrivalTime.getMinutes();
+        const arrivesNextDay = flight.arrivalTime.getDate() !== flight.departureTime.getDate();
+        // Must arrive before 15:00 on the same day
+        const arrivesAfter15 = arrivalHour > 15 || (arrivalHour === 15 && arrivalMinute > 0);
+        if (arrivesNextDay || arrivesAfter15) {
+          flightLabels.push('Arrives after 15:00 requirement');
+        }
       }
       if (flight.type === 'return') {
         const arrivesNextDay = flight.arrivalTime.getDate() !== flight.departureTime.getDate();
@@ -1387,26 +1410,6 @@ const Task3 = () => {
   return (
     <PageContainer>
       <PageTitle>Plan Your Business Trip to Berlin</PageTitle>
-
-      <AdaptiveNotice $load={uiLoadState}>
-        <NoticeHeader>
-          <span>{loadTitle}</span>
-          <span style={{ fontSize: '0.85rem', color: '#475569' }}>{uiLoadState}</span>
-        </NoticeHeader>
-        <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
-        {/* insights removed due to missing cognitiveLoadHints */}
-        <GuidedList>
-          {guidedSteps.map(step => (
-            <GuidedItem key={step.id} $completed={step.completed}>
-              <span>{step.label}</span>
-              <span>{step.completed ? '✓' : '•'}</span>
-            </GuidedItem>
-          ))}
-        </GuidedList>
-        <QuickActionButton type="button" onClick={runGuidedValidation}>
-          Run Guided Validation
-        </QuickActionButton>
-      </AdaptiveNotice>
 
       <Layout>
         <MainContent>

@@ -2,11 +2,10 @@ import styled from 'styled-components';
 
 const BudgetContainer = styled.div`
   background: ${props => props.theme.colors.white};
-  padding: ${props => props.theme.spacing[5]};
-  border-radius: ${props => props.theme.borderRadius.xl};
-  box-shadow: ${props => props.$highlighted ? '0 18px 38px rgba(72, 149, 239, 0.25)' : props.theme.shadows.md};
+  padding: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.lg};
+  box-shadow: ${props => props.$highlighted ? '0 8px 20px rgba(72, 149, 239, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.08)'};
   border: 2px solid ${props => props.$highlighted ? props.theme.colors.info : 'transparent'};
-  margin-bottom: ${props => props.theme.spacing[6]};
   position: sticky;
   top: ${props => props.$variant === 'inline' ? props.theme.spacing[2] : props.theme.spacing[4]};
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
@@ -20,23 +19,24 @@ const BudgetContainer = styled.div`
 const BudgetItem = styled.div`
   display: flex;
   justify-content: space-between;
-  margin-bottom: ${props => props.theme.spacing[3]};
-  padding: ${props => props.theme.spacing[2]};
+  margin-bottom: ${props => props.theme.spacing[2]};
+  padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[2]};
   border-bottom: 1px solid ${props => props.theme.colors.gray200};
   background: ${props => props.$emphasized ? `${props.theme.colors.danger}10` : 'transparent'};
   border-left: ${props => props.$emphasized ? `3px solid ${props.theme.colors.danger}` : 'none'};
+  font-size: ${props => props.theme.fontSizes.sm};
 `;
 
 const Total = styled(BudgetItem)`
   font-weight: 600;
-  font-size: ${props => props.theme.fontSizes.lg};
+  font-size: ${props => props.theme.fontSizes.md};
   border-bottom: 2px solid ${props => props.theme.colors.gray300};
 `;
 
 const Remaining = styled(BudgetItem)`
   font-weight: 600;
   color: ${props => props.remaining < 0 ? props.theme.colors.danger : props.theme.colors.success};
-  font-size: ${props => props.theme.fontSizes.lg};
+  font-size: ${props => props.theme.fontSizes.md};
 `;
 
 const DeltaTag = styled.span`
@@ -76,10 +76,10 @@ const BudgetSummary = ({
 
   return (
     <BudgetContainer $highlighted={highlight} $variant={variant}>
-      <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', marginBottom: '0.75rem' }}>
         Budget Summary
         {variant === 'inline' && (
-          <span style={{ fontSize: '0.75rem', color: '#4895ef', fontWeight: 700 }}>
+          <span style={{ fontSize: '0.7rem', color: '#4895ef', fontWeight: 700 }}>
             Pinned while resolving overrun
           </span>
         )}
@@ -130,13 +130,13 @@ const BudgetSummary = ({
         <span>${remaining}</span>
       </Remaining>
       
-      <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
+      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#666' }}>
         Total Budget: $1,380
       </div>
       {(highlight || inlineHint) && (
         <div style={{
           marginTop: '0.5rem',
-          fontSize: '0.85rem',
+          fontSize: '0.75rem',
           color: '#4895ef',
           fontWeight: 600
         }}>

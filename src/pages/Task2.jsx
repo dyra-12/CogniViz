@@ -29,14 +29,15 @@ const PageTitle = styled.h1`
 
 const ContentLayout = styled.div`
   display: grid;
-  grid-template-columns: 300px 1fr 350px;
-  gap: ${props => props.theme.spacing[8]};
+  grid-template-columns: 280px minmax(600px, 900px) 320px;
+  gap: ${props => props.theme.spacing[6]};
   max-width: 1600px;
   margin: 0 auto;
   padding: 0 ${props => props.theme.spacing[4]};
+  justify-content: center;
 
   @media (max-width: 1200px) {
-    grid-template-columns: 300px 1fr;
+    grid-template-columns: 280px 1fr;
   }
 
   @media (max-width: 968px) {
@@ -46,19 +47,20 @@ const ContentLayout = styled.div`
 
 const ProductsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: ${props => props.theme.spacing[6]};
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: ${props => props.theme.spacing[4]};
   align-items: start;
+  max-width: 100%;
 `;
 
 const ResultsInfo = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${props => props.theme.spacing[6]};
-  padding: ${props => props.theme.spacing[4]};
+  margin-bottom: ${props => props.theme.spacing[4]};
+  padding: ${props => props.theme.spacing[3]};
   background: ${props => props.theme.colors.gray100};
-  border-radius: ${props => props.theme.borderRadius.lg};
+  border-radius: ${props => props.theme.borderRadius.md};
   gap: ${props => props.theme.spacing[3]};
   flex-wrap: wrap;
 `;
@@ -84,15 +86,18 @@ const NoProducts = styled.div`
 `;
 
 const AdaptiveNotice = styled.div`
-  border-radius: ${props => props.theme.borderRadius.lg};
-  padding: ${props => props.theme.spacing[4]};
+  border-radius: ${props => props.theme.borderRadius.md};
+  padding: ${props => props.theme.spacing[3]};
   border: 1px solid ${props => props.theme.colors.gray200};
   background: ${props => props.$load === 'High'
-    ? 'rgba(247,37,133,0.08)'
+    ? 'rgba(247,37,133,0.05)'
     : props.$load === 'Medium'
-      ? 'rgba(247,127,0,0.08)'
-      : 'rgba(67,97,238,0.05)'};
-  margin-bottom: ${props => props.theme.spacing[5]};
+      ? 'rgba(247,127,0,0.05)'
+      : 'rgba(67,97,238,0.03)'};
+  margin-bottom: ${props => props.theme.spacing[4]};
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
 `;
 
 const NoticeHeader = styled.div`
@@ -101,6 +106,7 @@ const NoticeHeader = styled.div`
   align-items: center;
   font-weight: 600;
   color: ${props => props.theme.colors.dark};
+  font-size: ${props => props.theme.fontSizes.sm};
 `;
 
 const InsightChips = styled.div`
@@ -137,11 +143,11 @@ const QuickActionButton = styled.button`
 `;
 
 const FocusTag = styled.span`
-  background: ${props => props.theme.colors.warning}15;
+  background: ${props => props.theme.colors.warning}12;
   color: ${props => props.theme.colors.warning};
   border-radius: 999px;
   padding: ${props => props.theme.spacing[1]} ${props => props.theme.spacing[2]};
-  font-size: ${props => props.theme.fontSizes.sm};
+  font-size: ${props => props.theme.fontSizes.xs};
   font-weight: 600;
 `;
 
@@ -155,31 +161,38 @@ const ShowAllButton = styled.button`
 `;
 
 const AdaptiveHint = styled.div`
-  border-radius: ${props => props.theme.borderRadius.lg};
-  padding: ${props => props.theme.spacing[4]};
-  background: ${props => props.theme.colors.gray100};
-  border: 1px dashed ${props => props.theme.colors.gray300};
+  border-radius: ${props => props.theme.borderRadius.md};
+  padding: ${props => props.theme.spacing[3]};
+  background: ${props => props.theme.colors.info}05;
+  border: 1px solid ${props => props.theme.colors.info}20;
   display: flex;
   flex-direction: column;
-  gap: ${props => props.theme.spacing[2]};
+  gap: ${props => props.theme.spacing[1]};
+  margin-bottom: ${props => props.theme.spacing[3]};
+  font-size: ${props => props.theme.fontSizes.sm};
 `;
 
 const HintTitle = styled.span`
-  font-weight: 700;
-  color: ${props => props.theme.colors.gray800};
+  font-weight: 600;
+  color: ${props => props.theme.colors.info};
+  font-size: ${props => props.theme.fontSizes.sm};
 `;
 
 const ExplorationModeBanner = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: ${props => props.theme.spacing[3]};
-  padding: ${props => props.theme.spacing[3]} ${props => props.theme.spacing[4]};
-  margin-bottom: ${props => props.theme.spacing[4]};
+  gap: ${props => props.theme.spacing[2]};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
+  margin-bottom: ${props => props.theme.spacing[3]};
   background: ${props => props.theme.colors.gray100};
   border: 1px solid ${props => props.theme.colors.gray200};
-  border-radius: ${props => props.theme.borderRadius.lg};
-  color: ${props => props.theme.colors.gray800};
-  font-weight: 600;
+  border-radius: ${props => props.theme.borderRadius.md};
+  color: ${props => props.theme.colors.gray700};
+  font-weight: 500;
+  font-size: ${props => props.theme.fontSizes.sm};
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
 `;
 
 const Container = styled.div`
@@ -200,12 +213,26 @@ const SuccessMessage = styled.div`
 const Sidebar = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${props => props.theme.spacing[6]};
+  gap: ${props => props.theme.spacing[3]};
   position: sticky;
-  top: ${props => props.theme.spacing[4]};
+  top: ${props => props.theme.spacing[3]};
   height: fit-content;
-  max-height: calc(100vh - 100px);
+  max-height: calc(100vh - 40px);
   overflow-y: auto;
+
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.theme.colors.gray300};
+    border-radius: 3px;
+  }
 
   @media (max-width: 1200px) {
     grid-column: 1 / -1;
@@ -806,11 +833,9 @@ const Task2 = () => {
 
       <AdaptiveNotice $load={loadState}>
         <NoticeHeader>
-          <span>{loadTitle}</span>
-          <span style={{ fontSize: '0.85rem', color: '#475569' }}>{loadState}</span>
+          <span>{loadState} Load</span>
+          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>{loadTitle}</span>
         </NoticeHeader>
-        <p style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: '#475569' }}>{loadMessage}</p>
-        {/* insights removed due to missing cognitiveLoadHints */}
         {isHighLoad && (
           <QuickActions>
             <QuickActionButton type="button" onClick={applyRecommendedPreset}>
@@ -832,7 +857,7 @@ const Task2 = () => {
       {loadSignals.mediumSustained && (
         <ExplorationModeBanner>
           <span role="img" aria-label="exploration">🧭</span>
-          <span>Exploration mode: comparing multiple options</span>
+          <span>Comparing options</span>
         </ExplorationModeBanner>
       )}
       
@@ -931,11 +956,8 @@ const Task2 = () => {
           )}
         </div>
 
-        {/* Right Sidebar - Requirements Checklist */}
+        {/* Right Sidebar - Requirements First */}
         <Sidebar>
-          <CognitiveLoadGauge />
-          <ExplanationBanner />
-          <TopFactorsList />
           <RequirementsChecklist 
             filters={filters}
             selectedProduct={selectedProduct}
@@ -943,6 +965,9 @@ const Task2 = () => {
             onAction={handleChecklistAction}
             highlight={isHighLoad}
           />
+          <CognitiveLoadGauge />
+          <ExplanationBanner />
+          <TopFactorsList />
         </Sidebar>
       </ContentLayout>
 

@@ -19,17 +19,39 @@ const ModalContent = styled.div`
   background: ${props => props.theme.colors.white};
   border-radius: ${props => props.theme.borderRadius.xl};
   padding: ${props => props.theme.spacing[8]};
-  max-width: 600px;
+  max-width: 650px;
   width: 100%;
-  max-height: 80vh;
+  max-height: 85vh;
   overflow-y: auto;
-  box-shadow: ${props => props.theme.shadows.xl};
+  box-shadow: 0 20px 60px rgba(67, 97, 238, 0.25);
+  border: 1px solid ${props => props.theme.colors.gray200};
+  
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: ${props => props.theme.colors.gray100};
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.theme.colors.primary};
+    border-radius: 4px;
+  }
 `;
 
 const Title = styled.h2`
   color: ${props => props.theme.colors.primary};
   margin-bottom: ${props => props.theme.spacing[6]};
   text-align: center;
+  font-size: ${props => props.theme.fontSizes['3xl']};
+  font-weight: 700;
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.secondary} 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 `;
 
 const Instructions = styled.div`
@@ -37,26 +59,42 @@ const Instructions = styled.div`
   
   h3 {
     color: ${props => props.theme.colors.dark};
-    margin-bottom: ${props => props.theme.spacing[3]};
+    margin-bottom: ${props => props.theme.spacing[4]};
+    font-size: ${props => props.theme.fontSizes.xl};
+    font-weight: 600;
   }
   
   ul {
-    margin-left: ${props => props.theme.spacing[6]};
+    margin-left: ${props => props.theme.spacing[4]};
     margin-bottom: ${props => props.theme.spacing[4]};
   }
   
   li {
     margin-bottom: ${props => props.theme.spacing[2]};
-    line-height: 1.6;
+    line-height: 1.7;
+    color: ${props => props.theme.colors.gray700};
+    font-size: ${props => props.theme.fontSizes.md};
   }
 `;
 
 const TaskGoal = styled.div`
-  background: ${props => props.theme.colors.gray100};
-  padding: ${props => props.theme.spacing[4]};
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary}08 0%, ${props => props.theme.colors.info}08 100%);
+  padding: ${props => props.theme.spacing[5]};
   border-radius: ${props => props.theme.borderRadius.lg};
   margin-bottom: ${props => props.theme.spacing[6]};
   border-left: 4px solid ${props => props.theme.colors.primary};
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.08);
+  
+  strong {
+    color: ${props => props.theme.colors.primary};
+    font-size: ${props => props.theme.fontSizes.lg};
+    display: block;
+    margin-bottom: ${props => props.theme.spacing[2]};
+  }
+  
+  color: ${props => props.theme.colors.gray800};
+  font-size: ${props => props.theme.fontSizes.md};
+  line-height: 1.6;
 `;
 
 const ButtonContainer = styled.div`
@@ -65,13 +103,18 @@ const ButtonContainer = styled.div`
 `;
 
 const BudgetWarning = styled.div`
-  background: ${props => props.theme.colors.warning}15;
+  background: linear-gradient(135deg, ${props => props.theme.colors.warning}12 0%, ${props => props.theme.colors.danger}08 100%);
   color: ${props => props.theme.colors.warning};
-  padding: ${props => props.theme.spacing[3]};
-  border-radius: ${props => props.theme.borderRadius.md};
-  border: 1px solid ${props => props.theme.colors.warning}30;
+  padding: ${props => props.theme.spacing[4]};
+  border-radius: ${props => props.theme.borderRadius.lg};
+  border: 2px solid ${props => props.theme.colors.warning}40;
   margin-top: ${props => props.theme.spacing[4]};
   font-weight: 600;
+  font-size: ${props => props.theme.fontSizes.md};
+  box-shadow: 0 2px 8px rgba(247, 127, 0, 0.12);
+  display: flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing[2]};
 `;
 
 const InstructionModal = ({ taskNumber, onClose }) => {
@@ -90,43 +133,62 @@ const InstructionModal = ({ taskNumber, onClose }) => {
         };
       case 2:
         return {
-          title: 'Task 2: Find a Laptop Matching Specific Requirements',
-          goal: 'Find and select a laptop that meets all of the following criteria using the filter system.',
+          title: 'Task 2: Laptop Selection Challenge',
+          goal: 'Use the filtering system to find and select a laptop that meets ALL the specified requirements below.',
           steps: [
-            '📋 Required Criteria:',
+            '📋 Requirements to Match:',
             '',
-            '💰 Price: Between $800 and $1,200',
-            '🏷️ Brand: Dell OR Lenovo (select both brands)',
-            '⭐ Rating: 4 stars or higher',
-            '💾 RAM: 16GB or more',
+            '• Price Range: $800 - $1,200',
+            '• Brand: Dell OR Lenovo (you can select both)',
+            '• Customer Rating: 4 stars or higher',
+            '• Memory (RAM): 16GB or more',
             '',
             '─────────────────────────',
             '',
-            '📝 Steps to Complete:',
+            '📝 How to Complete This Task:',
             '',
-            '1️⃣ Use the filter panel on the left to set each requirement',
-            '2️⃣ Apply all four filters until only matching laptops are shown',
-            '3️⃣ Review the filtered results in the product grid',
-            '4️⃣ Hover over laptop cards to see detailed specifications',
-            '5️⃣ Click "Add to Cart" on ANY laptop that meets all criteria',
-            '6️⃣ Click "Complete Task" to finish',
+            '1. Open the filter panel on the left side',
+            '2. Set each filter to match all four requirements above',
+            '3. Review the filtered laptops in the product grid',
+            '4. Hover over cards to view detailed specifications',
+            '5. Click "Add to Cart" on ANY laptop that matches all criteria',
+            '6. Click "Complete Task" when done',
             '',
-            '💡 Tip: The requirements checklist on the right tracks your progress!'
+            '💡 Pro Tip: Watch the requirements checklist on the right to track your progress in real-time!'
           ]
         };
       case 3:
         return {
-          title: 'Task 3: Plan Your Business Trip to Berlin',
-          goal: 'Plan a 4-day, 3-night business trip to Berlin with a budget of $1,380. Book flights, hotel, transportation, and schedule meetings with multiple complex constraints.',
+          title: 'Task 3: Berlin Business Trip Planner',
+          goal: 'Plan a complete 4-day, 3-night business trip to Berlin while staying within your $1,380 budget. You need to book flights, accommodation, transportation, and schedule all required meetings.',
           steps: [
-            'Book a Flight: Choose round-trip flight from NY to Berlin that arrives before 15:00 on the same day and departs after 12:00 on Day 4',
-            'Book a Hotel: Choose a 3+ star hotel within 5km of Conference Center for 3 nights',
-            'Select Transportation: Choose how you will get around Berlin',
-            'Schedule Meetings: Drag all five meetings into the calendar respecting complex time constraints and dependencies',
-            'Manage Budget: Keep total cost under $1,380 - careful planning required!',
-            'Finalize your trip when everything is arranged'
+            '✈️ Flight Booking:',
+            '• Round-trip from New York to Berlin',
+            '• Arrival: Before 3:00 PM on Day 1',
+            '• Departure: After 12:00 PM on Day 4',
+            '',
+            '🏨 Hotel Reservation:',
+            '• Rating: 3 stars or higher',
+            '• Location: Within 5km of Conference Center',
+            '• Duration: 3 nights (check-in Day 1, check-out Day 4)',
+            '',
+            '🚗 Transportation:',
+            '• Select your preferred method to get around Berlin',
+            '• Consider cost vs. convenience trade-offs',
+            '',
+            '📅 Meeting Scheduler:',
+            '• Drag and drop all 5 meetings into the calendar',
+            '• Follow time constraints and dependencies carefully',
+            '• Some meetings must occur before others',
+            '',
+            '💰 Budget Management:',
+            '• Total budget: $1,380',
+            '• Track spending in real-time via the budget panel',
+            '• Balance cost and quality for all bookings',
+            '',
+            '✅ Click "Finalize Trip" when everything is booked and scheduled!'
           ],
-          budgetWarning: '⚠️ Budget: $1,380 - plan carefully!'
+          budgetWarning: '⚠️ Budget Alert: You have $1,380 total. Plan each booking carefully to stay within budget!'
         };
         default:
         return { title: '', goal: '', steps: [] };
@@ -145,23 +207,76 @@ const InstructionModal = ({ taskNumber, onClose }) => {
         </TaskGoal>
 
         <Instructions>
-          <h3>What you need to do:</h3>
+          <h3>Instructions:</h3>
           <ul>
             {instructions.steps.map((step, index) => {
               // Handle empty lines (for spacing)
               if (step === '') {
-                return <li key={index} style={{ listStyle: 'none', height: '0.5rem' }}></li>;
+                return <li key={index} style={{ listStyle: 'none', height: '0.3rem', margin: 0 }}></li>;
               }
               // Handle dividers
               if (step.includes('─────')) {
-                return <li key={index} style={{ listStyle: 'none', margin: '0.5rem 0' }}>{step}</li>;
+                return <li key={index} style={{ 
+                  listStyle: 'none', 
+                  margin: '1rem 0',
+                  borderTop: '1px solid #dee2e6',
+                  padding: 0
+                }}></li>;
               }
-              // Handle section headers (lines ending with :)
-              if (step.endsWith(':') || step.startsWith('📋') || step.startsWith('📝')) {
-                return <li key={index} style={{ listStyle: 'none', fontWeight: 'bold', marginTop: '0.5rem' }}>{step}</li>;
+              // Handle section headers with emojis
+              if (step.match(/^[✈️🏨🚗📅💰📋📝]/)) {
+                return <li key={index} style={{ 
+                  listStyle: 'none', 
+                  fontWeight: '700',
+                  fontSize: '1.05rem',
+                  marginTop: '1rem',
+                  marginBottom: '0.5rem',
+                  color: '#4361ee'
+                }}>{step}</li>;
+              }
+              // Bullet points (items starting with •)
+              if (step.startsWith('•')) {
+                return <li key={index} style={{
+                  listStyle: 'none',
+                  paddingLeft: '1.5rem',
+                  position: 'relative',
+                  marginBottom: '0.5rem'
+                }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: '0',
+                    color: '#4361ee',
+                    fontWeight: 'bold'
+                  }}>•</span>
+                  {step.substring(1).trim()}
+                </li>;
+              }
+              // Tips and special notes
+              if (step.startsWith('💡') || step.startsWith('✅')) {
+                return <li key={index} style={{ 
+                  listStyle: 'none',
+                  background: '#4cc9f008',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  marginTop: '1rem',
+                  border: '1px solid #4cc9f030',
+                  fontWeight: '500',
+                  color: '#495057'
+                }}>{step}</li>;
+              }
+              // Numbered items (starting with digit)
+              if (step.match(/^\d+\./)) {
+                return <li key={index} style={{
+                  listStyle: 'none',
+                  marginBottom: '0.6rem',
+                  paddingLeft: '0.5rem'
+                }}>{step}</li>;
               }
               // Regular list items
-              return <li key={index}>{step}</li>;
+              return <li key={index} style={{
+                marginBottom: '0.6rem',
+                paddingLeft: '0.5rem'
+              }}>{step}</li>;
             })}
           </ul>
         </Instructions>

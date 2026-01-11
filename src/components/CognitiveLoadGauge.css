@@ -1,16 +1,15 @@
 .cognitive-load-gauge {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   background: white;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .gauge-label {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #666;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -23,9 +22,9 @@
 
 .gauge-bar {
   flex: 1;
-  height: 2rem;
+  height: 1.5rem;
   background: #f0f0f0;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   overflow: hidden;
   position: relative;
 }
@@ -83,9 +82,9 @@
 }
 
 .gauge-text {
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 700;
-  min-width: 80px;
+  min-width: 70px;
   text-align: right;
   transition: color 0.5s ease-in-out;
 }

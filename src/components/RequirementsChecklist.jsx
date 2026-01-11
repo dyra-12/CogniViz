@@ -3,31 +3,33 @@ import styled from 'styled-components';
 
 const ChecklistContainer = styled.div`
   background: ${props => props.theme.colors.white};
-  padding: ${props => props.theme.spacing[5]};
-  border-radius: ${props => props.theme.borderRadius.xl};
-  box-shadow: ${props => props.$highlighted ? '0 18px 38px rgba(251, 191, 36, 0.25)' : props.theme.shadows.md};
+  padding: ${props => props.theme.spacing[3]};
+  border-radius: ${props => props.theme.borderRadius.lg};
+  box-shadow: ${props => props.$highlighted ? '0 8px 20px rgba(251, 191, 36, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.08)'};
   border: 2px solid ${props => props.$highlighted ? props.theme.colors.warning : 'transparent'};
-  margin-bottom: ${props => props.theme.spacing[6]};
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 `;
 
 const ChecklistTitle = styled.h3`
-  margin-bottom: ${props => props.theme.spacing[4]};
+  margin-bottom: ${props => props.theme.spacing[2]};
   color: ${props => props.theme.colors.dark};
   display: flex;
   align-items: center;
-  gap: ${props => props.theme.spacing[3]};
+  gap: ${props => props.theme.spacing[2]};
+  font-size: ${props => props.theme.fontSizes.md};
+  font-weight: 600;
 `;
 
 const RequirementItem = styled.div`
   display: flex;
   align-items: center;
-  gap: ${props => props.theme.spacing[3]};
-  margin-bottom: ${props => props.theme.spacing[3]};
-  padding: ${props => props.theme.spacing[2]};
+  gap: ${props => props.theme.spacing[2]};
+  margin-bottom: ${props => props.theme.spacing[2]};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[2]};
   border-radius: ${props => props.theme.borderRadius.md};
-  background: ${props => (props.$completed ? `${props.theme.colors.success}15` : props.theme.colors.gray100)};
-  border-left: 4px solid ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray300};
+  background: ${props => (props.$completed ? `${props.theme.colors.success}10` : props.theme.colors.gray50)};
+  border-left: 3px solid ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray300};
+  font-size: ${props => props.theme.fontSizes.sm};
 `;
 
 const RequirementText = styled.span`
@@ -40,19 +42,20 @@ const Icon = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: ${props => props.$completed ? props.theme.colors.success : props.theme.colors.gray300};
   color: ${props => props.theme.colors.white};
-  font-size: ${props => props.theme.fontSizes.sm};
+  font-size: ${props => props.theme.fontSizes.xs};
+  flex-shrink: 0;
 `;
 
 const ProgressBar = styled.div`
-  height: 8px;
+  height: 6px;
   background: ${props => props.theme.colors.gray200};
-  border-radius: 4px;
-  margin-top: ${props => props.theme.spacing[4]};
+  border-radius: 3px;
+  margin-top: ${props => props.theme.spacing[3]};
   overflow: hidden;
 `;
 
@@ -65,22 +68,22 @@ const ProgressFill = styled.div`
 
 const ProgressText = styled.div`
   text-align: center;
-  margin-top: ${props => props.theme.spacing[2]};
-  font-size: ${props => props.theme.fontSizes.sm};
+  margin-top: ${props => props.theme.spacing[1]};
+  font-size: ${props => props.theme.fontSizes.xs};
   color: ${props => props.theme.colors.gray600};
 `;
 
 const ActionButton = styled.button`
   width: 100%;
-  padding: ${props => props.theme.spacing[3]};
+  padding: ${props => props.theme.spacing[2]} ${props => props.theme.spacing[3]};
   background: ${props => props.disabled ? props.theme.colors.gray300 : props.theme.colors.primary};
   color: ${props => props.theme.colors.white};
   border: none;
   border-radius: ${props => props.theme.borderRadius.md};
-  font-size: ${props => props.theme.fontSizes.md};
+  font-size: ${props => props.theme.fontSizes.sm};
   font-weight: 600;
   cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
-  margin-top: ${props => props.theme.spacing[4]};
+  margin-top: ${props => props.theme.spacing[3]};
   transition: background-color 0.2s ease;
 
   &:hover:not(:disabled) {

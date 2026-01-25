@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1640" height="900" viewBox="0 0 1640 900" role="img" aria-label="CogniViz preview banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="0.6" stop-color="#101B32"/>
+      <stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.06"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <style>
+      .title { font: 700 74px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; fill: #EAF0FF; }
+      .subtitle { font: 500 28px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; fill: rgba(234,240,255,0.82); }
+      .label { font: 600 18px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; fill: rgba(234,240,255,0.88); }
+      .muted { font: 500 16px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; fill: rgba(234,240,255,0.70); }
+      .chip { font: 600 14px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; fill: rgba(234,240,255,0.90); }
+    </style>
+  </defs>
+
+  <rect width="1640" height="900" rx="44" fill="url(#bg)"/>
+
+  <!-- Decorative grid -->
+  <g opacity="0.18">
+    <path d="M0 120H1640" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M0 240H1640" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M0 360H1640" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M0 480H1640" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M0 600H1640" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M0 720H1640" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M180 0V900" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M420 0V900" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M660 0V900" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M900 0V900" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M1140 0V900" stroke="#7AA2FF" stroke-width="1"/>
+    <path d="M1380 0V900" stroke="#7AA2FF" stroke-width="1"/>
+  </g>
+
+  <!-- Header text -->
+  <g transform="translate(96, 130)">
+    <text class="title">CogniViz</text>
+    <text class="subtitle" y="58">Cognitive workload study app with task telemetry + NASA‑TLX</text>
+
+    <!-- Chips -->
+    <g transform="translate(0, 98)">
+      <rect x="0" y="0" rx="18" ry="18" width="144" height="36" fill="rgba(67,97,238,0.22)" stroke="rgba(122,162,255,0.45)"/>
+      <text class="chip" x="18" y="24">React + Vite</text>
+
+      <rect x="160" y="0" rx="18" ry="18" width="156" height="36" fill="rgba(34,197,94,0.18)" stroke="rgba(34,197,94,0.40)"/>
+      <text class="chip" x="178" y="24">Firebase / Firestore</text>
+
+      <rect x="332" y="0" rx="18" ry="18" width="182" height="36" fill="rgba(234,179,8,0.16)" stroke="rgba(234,179,8,0.38)"/>
+      <text class="chip" x="350" y="24">Telemetry + Metrics</text>
+
+      <rect x="530" y="0" rx="18" ry="18" width="150" height="36" fill="rgba(247,37,133,0.14)" stroke="rgba(247,37,133,0.35)"/>
+      <text class="chip" x="548" y="24">Cognitive Load UI</text>
+    </g>
+  </g>
+
+  <!-- Mock UI cards -->
+  <g filter="url(#shadow)">
+    <rect x="96" y="280" width="1060" height="520" rx="26" fill="url(#card)" stroke="rgba(234,240,255,0.20)"/>
+    <rect x="1186" y="280" width="358" height="520" rx="26" fill="url(#card)" stroke="rgba(234,240,255,0.20)"/>
+  </g>
+
+  <!-- Left card content (tasks) -->
+  <g transform="translate(140, 330)">
+    <text class="label">Study Tasks</text>
+    <text class="muted" y="34">Interactive flows instrumented for behavior + performance signals</text>
+
+    <g transform="translate(0, 76)">
+      <rect x="0" y="0" width="980" height="92" rx="18" fill="rgba(255,255,255,0.08)" stroke="rgba(234,240,255,0.16)"/>
+      <circle cx="40" cy="46" r="18" fill="rgba(34,197,94,0.9)"/>
+      <text class="label" x="74" y="40">Task 1</text>
+      <text class="muted" x="74" y="66">Shipping / data-entry form with validation + field navigation</text>
+      <rect x="820" y="30" width="130" height="32" rx="16" fill="rgba(34,197,94,0.16)" stroke="rgba(34,197,94,0.35)"/>
+      <text class="chip" x="848" y="51">Low ↔ High</text>
+    </g>
+
+    <g transform="translate(0, 190)">
+      <rect x="0" y="0" width="980" height="92" rx="18" fill="rgba(255,255,255,0.08)" stroke="rgba(234,240,255,0.16)"/>
+      <circle cx="40" cy="46" r="18" fill="rgba(234,179,8,0.95)"/>
+      <text class="label" x="74" y="40">Task 2</text>
+      <text class="muted" x="74" y="66">Product filtering + comparison decisions</text>
+      <rect x="820" y="30" width="130" height="32" rx="16" fill="rgba(234,179,8,0.16)" stroke="rgba(234,179,8,0.35)"/>
+      <text class="chip" x="848" y="51">Medium</text>
+    </g>
+
+    <g transform="translate(0, 304)">
+      <rect x="0" y="0" width="980" height="92" rx="18" fill="rgba(255,255,255,0.08)" stroke="rgba(234,240,255,0.16)"/>
+      <circle cx="40" cy="46" r="18" fill="rgba(239,68,68,0.95)"/>
+      <text class="label" x="74" y="40">Task 3</text>
+      <text class="muted" x="74" y="66">Travel planning: flights, hotels, meetings, transport + budget constraints</text>
+      <rect x="820" y="30" width="130" height="32" rx="16" fill="rgba(239,68,68,0.14)" stroke="rgba(239,68,68,0.32)"/>
+      <text class="chip" x="848" y="51">High</text>
+    </g>
+
+    <g transform="translate(0, 436)">
+      <rect x="0" y="0" width="980" height="54" rx="16" fill="rgba(67,97,238,0.12)" stroke="rgba(122,162,255,0.30)"/>
+      <text class="label" x="18" y="36">After each task: NASA‑TLX questionnaire + upload to Firestore</text>
+    </g>
+  </g>
+
+  <!-- Right card content (cognitive load widget) -->
+  <g transform="translate(1228, 330)">
+    <text class="label">Cognitive Load</text>
+    <text class="muted" y="34">UI: gauge + top factors + explanation</text>
+
+    <g transform="translate(0, 72)">
+      <rect x="0" y="0" width="274" height="158" rx="22" fill="rgba(255,255,255,0.08)" stroke="rgba(234,240,255,0.16)"/>
+      <text class="label" x="18" y="42">Level</text>
+      <text class="title" x="18" y="108" style="font-size: 56px;">MED</text>
+      <rect x="18" y="124" width="238" height="12" rx="6" fill="rgba(234,240,255,0.14)"/>
+      <rect x="18" y="124" width="160" height="12" rx="6" fill="rgba(234,179,8,0.85)"/>
+    </g>
+
+    <g transform="translate(0, 248)">
+      <rect x="0" y="0" width="274" height="220" rx="22" fill="rgba(255,255,255,0.08)" stroke="rgba(234,240,255,0.16)"/>
+      <text class="label" x="18" y="42">Top factors</text>
+      <text class="muted" x="18" y="78">scroll speed</text>
+      <text class="muted" x="18" y="110">error rate</text>
+      <text class="muted" x="18" y="142">rapid changes</text>
+      <rect x="18" y="166" width="238" height="34" rx="17" fill="rgba(122,162,255,0.14)" stroke="rgba(122,162,255,0.26)"/>
+      <text class="chip" x="28" y="188">explanation banner</text>
+    </g>
+  </g>
+</svg>

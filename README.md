@@ -11,7 +11,7 @@
 ![Status](https://img.shields.io/badge/Status-Active-success.svg)
 ![License](https://img.shields.io/badge/License-Unspecified-lightgrey.svg)
 
-**A browser-native research system for cognitive workload instrumentation and NASA-TLX collection**
+**A browser-native research system for cognitive workload instrumentation and NASA-TLX collections**
 
 [🚀 Quick Start](#-quick-start) | [✨ Features](#-features) | [🧪 Study Flow](#-study-flow) | [📦 Project Structure](#-project-structure) | [🔒 Security Notes](#-security-notes)
 

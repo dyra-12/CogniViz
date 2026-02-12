@@ -1,69 +1,182 @@
-# CogniViz Study - Metrics & Data Collection Documentation
+# CogniViz Study: Metrics & Data Collection Documentation
 
-## Overview
+> **Purpose**: This document provides a comprehensive guide to the metrics collected, data structures, and analysis approach for the CogniViz cognitive workload research study.
 
-**CogniViz** is a cognitive workload research application that measures user performance and subjective workload across three interactive tasks. After each task, participants complete a NASA-TLX questionnaire to self-report their cognitive load. All metrics are stored locally in the browser's localStorage and then aggregated and uploaded to Firebase Firestore upon study completion.
+---
+
+## 📋 Table of Contents
+
+1. [Study Overview](#study-overview)
+2. [Study Flow](#study-flow)
+3. [Task Descriptions](#task-descriptions)
+4. [Metrics Collected](#metrics-collected)
+5. [NASA-TLX Questionnaire](#nasa-tlx-questionnaire)
+6. [Data Storage & Flow](#data-storage--flow)
+7. [Key Files Reference](#key-files-reference)
+8. [Usage for Researchers](#usage-for-researchers)
+9. [Technical Notes](#technical-notes)
+
+---
+
+## Study Overview
+
+**CogniViz** is a web-based cognitive workload research application that measures both objective performance metrics and subjective workload across three distinct interactive tasks.
+
+### What We Measure
+
+- **Objective Metrics**: Task completion time, error rates, mouse movements, interaction patterns
+- **Subjective Metrics**: NASA-TLX questionnaire responses after each task
+- **Behavioral Signals**: Decision-making patterns, hesitations, constraint violations
+
+### Data Pipeline
+
+```
+User Interaction → Browser (localStorage) → Completion → Firebase Firestore
+```
+
+All metrics are collected in real-time, stored locally in the browser's `localStorage`, then aggregated and uploaded to Firebase Firestore upon study completion.
 
 ---
 
 ## Study Flow
 
-1. **Consent & Instructions** → Participant reads consent form and instructions
-2. **Task 1** → E-commerce form data entry task
-3. **NASA-TLX Questionnaire** → After Task 1
-4. **Task 2** → Product filtering and exploration task
-5. **NASA-TLX Questionnaire** → After Task 2
-6. **Task 3** → Multi-component travel planning task (budget, flights, hotels, meetings, transport)
-7. **NASA-TLX Questionnaire** → After Task 3
-8. **Completion Page** → Automatic data upload to Firestore
+### Complete Participant Journey
+
+```
+┌─────────────────────┐
+│ 1. Consent Landing  │ → Participant reads and accepts consent form
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 2. Task 1: Forms    │ → E-commerce checkout form (billing/shipping)
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 3. NASA-TLX #1      │ → Rate cognitive load (6 dimensions)
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 4. Task 2: Products │ → Filter and compare products
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 5. NASA-TLX #2      │ → Rate cognitive load (6 dimensions)
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 6. Task 3: Travel   │ → Multi-component planning with constraints
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 7. NASA-TLX #3      │ → Rate cognitive load (6 dimensions)
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ 8. Completion Page  │ → Automatic data upload to Firestore
+└─────────────────────┘
+```
+
+**Total Duration**: Approximately 20-30 minutes
+
 
 ---
 
-## Tasks Description
+## Task Descriptions
 
-### Task 1: Data Entry Form
-**Purpose:** Measure cognitive load during form completion with validation and field navigation.
+### 🗂️ Task 1: Data Entry Form
 
-**User Actions:**
-- Fill out billing and shipping information
-- Select shipping method
-- Navigate through multiple form fields
-- Handle validation errors
+**Primary Goal**: Complete a checkout form with billing and shipping information
 
-**Logged by:** `useTask1Logger` hook (`src/hooks/useTask1Logger.js`)
+**Cognitive Challenges**:
+- Form navigation and field completion
+- Data validation and error handling
+- Information recall and entry accuracy
+- Multi-field coordination
 
----
+**User Actions Measured**:
+- ✅ Fill billing and shipping information (name, email, address, etc.)
+- ✅ Select shipping method
+- ✅ Handle validation errors
+- ✅ Navigate between form fields
 
-### Task 2: Product Exploration & Filtering
-**Purpose:** Measure cognitive load during product search, filtering, and comparison.
-
-**User Actions:**
-- Apply filters (price, category, brand)
-- Hover over products to view details
-- Compare multiple products
-- Make selection decisions
-
-**Logged by:** `useTask2Logger` hook (`src/hooks/useTask2Logger.js`)
+**Logging Implementation**: [`useTask1Logger`](src/hooks/useTask1Logger.js)
 
 ---
 
-### Task 3: Travel Planning
-**Purpose:** Measure cognitive load in a complex multi-component task with constraints.
+### 🔍 Task 2: Product Exploration & Filtering
 
-**User Actions:**
-- Book flights (outbound and return with time constraints)
-- Book hotel (distance constraint)
-- Select transportation
-- Schedule meetings (drag-and-drop with conflict detection)
-- Manage budget (€1,380 limit)
+**Primary Goal**: Use filters to find and select products matching criteria
 
-**Logged by:** `useTask3Logger` hook (`src/hooks/useTask3Logger.js`)
+**Cognitive Challenges**:
+- Information filtering and sorting
+- Multiple option comparison
+- Decision-making under choice overload
+- Visual search and pattern matching
+
+**User Actions Measured**:
+- ✅ Apply price, category, and brand filters
+- ✅ Hover over products to view details
+- ✅ Compare multiple products
+- ✅ Make final selection
+
+**Logging Implementation**: [`useTask2Logger`](src/hooks/useTask2Logger.js)
 
 ---
 
-## Metrics Recorded Per Task
+### ✈️ Task 3: Travel Planning (Most Complex)
 
-### Task 1 Metrics - JSON Structure
+**Primary Goal**: Plan a business trip within budget and time constraints
+
+**Cognitive Challenges**:
+- Multi-component task coordination (5 sub-tasks)
+- Budget management (€1,380 limit)
+- Constraint satisfaction (time/distance rules)
+- Scheduling and conflict resolution
+
+**Components & Constraints**:
+
+| Component | Constraint | Limit |
+|-----------|-----------|-------|
+| **Flights (Outbound)** | Arrival time | Must arrive before 15:00 |
+| **Flights (Return)** | Departure time | ≥ 12:00, arrival next day |
+| **Hotel** | Distance from center | Within 5 km |
+| **Budget** | Total spending | ≤ €1,380 |
+| **Meetings** | Scheduling | No time conflicts allowed |
+| **Transportation** | Mode selection | One-time choice |
+
+**User Actions Measured**:
+- ✅ Book outbound and return flights
+- ✅ Select hotel within distance constraint
+- ✅ Choose ground transportation
+- ✅ Schedule 4 meetings via drag-and-drop
+- ✅ Manage total budget
+
+**Logging Implementation**: [`useTask3Logger`](src/hooks/useTask3Logger.js)
+
+
+---
+
+## Metrics Collected
+
+> **Note**: All timestamps are in ISO 8601 format (e.g., `2025-11-12T14:30:00.123Z`)
+
+### Overview of Metric Categories
+
+| Category | Task 1 | Task 2 | Task 3 |
+|----------|--------|--------|--------|
+| **Timing** | ✅ Start, end, duration | ✅ Start, end, duration | ✅ Start, end, duration |
+| **Success** | ✅ Completion, errors | ✅ Completion, errors | ✅ Completion, errors |
+| **Mouse Activity** | ✅ Events, coordinates | ✅ Entropy, precision | ✅ Entropy per component |
+| **Interactions** | ✅ Field-level tracking | ✅ Filter usage | ✅ Multi-component actions |
+| **Decision Patterns** | ✅ Edit counts | ✅ Comparison behavior | ✅ Rapid changes |
+| **Task-Specific** | ✅ Form validation | ✅ Product hovers | ✅ Budget/constraints |
+
+---
+
+### 📊 Task 1 Metrics Structure
+
+<details>
+<summary><strong>View Complete JSON Structure</strong></summary>
 
 ```json
 {
@@ -127,21 +240,31 @@
 }
 ```
 
-**Key Metrics Explanation:**
-- **timestamps**: Start and end times in ISO 8601 format
-- **total_time_ms**: Total task duration in milliseconds
-- **success**: Whether the task was completed successfully
-- **error_count**: Number of validation errors encountered
-- **help_requests**: Number of times user requested help
-- **field_interactions**: Per-field metrics including focus time, backspace count, and edit count
-- **mouse_data**: Raw mouse and keyboard event logs (throttled to 100ms for mousemove)
-- **zip_code_corrections**: Specific to Task 1, tracks how many times the zip code was edited
-- **shipping_method_changes**: Number of times shipping method was changed
-- **field_sequence**: Order in which fields were focused
+</details>
+
+#### Key Metrics Explained
+
+| Metric | Description | Analysis Use |
+|--------|-------------|--------------|
+| **`total_time_ms`** | Task completion time | Performance benchmark |
+| **`success`** | Task completed successfully | Completion rate |
+| **`error_count`** | Validation errors encountered | Error proneness |
+| **`field_interactions`** | Per-field focus time, edits, backspaces | Navigation patterns |
+| **`mouse_data`** | Raw event logs (throttled 100ms) | Movement analysis |
+| **`zip_code_corrections`** | Specific field edit count | Data entry difficulty |
+| **`field_sequence`** | Order fields were accessed | Strategy analysis |
+
+**Cognitive Load Indicators**:
+- High `backspace_count` → typing errors, uncertainty
+- High `edit_count` → field revisiting, corrections
+- Long `focus_time_ms` → difficulty or hesitation
 
 ---
 
-### Task 2 Metrics - JSON Structure
+### 📊 Task 2 Metrics Structure
+
+<details>
+<summary><strong>View Complete JSON Structure</strong></summary>
 
 ```json
 {
@@ -208,21 +331,34 @@
 }
 ```
 
-**Key Metrics Explanation:**
-- **filter_uses**: Complete history of filter applications with before/after values
-- **filter_sequence**: Order in which different filter types were first used
-- **filter_resets**: Number of times all filters were cleared
-- **products_viewed**: List of products hovered over with duration in milliseconds
-- **rapid_hover_switches**: Count of rapid switches between products (< 500ms between hovers)
-- **time_to_first_filter**: Milliseconds from task start to first filter application
-- **decision_time_ms**: Time from last filter change to task completion
-- **comparison_count**: Number of unique products viewed (hovered)
-- **mouse_entropy**: Calculated complexity of mouse movement path (higher = more erratic movement)
-- **click_precision**: Distance between click location and target center
+</details>
+
+#### Key Metrics Explained
+
+| Metric | Description | Analysis Use |
+|--------|-------------|--------------|
+| **`filter_uses`** | Complete filter history | Filter strategy analysis |
+| **`filter_sequence`** | Order of filter types applied | Decision approach |
+| **`filter_resets`** | Times all filters cleared | Strategy changes |
+| **`products_viewed`** | Hover events with duration | Information gathering |
+| **`rapid_hover_switches`** | Fast product switches (<500ms) | Decision uncertainty |
+| **`time_to_first_filter`** | Delay before first filter | Initial strategy formation |
+| **`decision_time_ms`** | Time from last filter to completion | Final decision duration |
+| **`mouse_entropy`** | Movement complexity score | Cognitive effort indicator |
+| **`click_precision`** | Distance from target center | Motor control |
+
+**Cognitive Load Indicators**:
+- High `rapid_hover_switches` → indecision, comparison difficulty
+- High `mouse_entropy` → erratic movement, searching behavior
+- Multiple `filter_resets` → strategy exploration or confusion
+- Long `decision_time_ms` → difficulty making final choice
 
 ---
 
-### Task 3 Metrics - JSON Structure
+### 📊 Task 3 Metrics Structure
+
+<details>
+<summary><strong>View Complete JSON Structure</strong></summary>
 
 ```json
 {
@@ -410,46 +546,59 @@
 }
 ```
 
-**Key Metrics Explanation:**
+```
 
-**General:**
-- **session_id**: Unique identifier for this task session
-- **total_actions**: Total number of user actions (selections, drags, etc.)
-- **component_switches**: Log of tab/component navigation
-- **idle_periods**: Periods of inactivity > 3 seconds
+</details>
 
-**Budget Tracking:**
-- **current_total**: Current total cost in euros
-- **updates**: Complete history of budget changes with cause and detail
-- **budget_overrun_events**: Number of times budget exceeded €1,380
-- **cost_adjustment_actions**: Number of times user reduced cost after overrun
-- **in_overrun**: Current overrun state (boolean)
-- **overrun_selection_counter**: Selections made while in overrun state
+#### Key Metrics Explained
 
-**Flights:**
-- **hover_events**: Flights user hovered over with duration
-- **selections**: Flight bookings with constraint validation
-- **follows_rules**: Whether selection meets task constraints:
-  - Outbound: arrival before 15:00
-  - Return: departure ≥ 12:00 AND arrival next day
-- **mouse_entropy**: Movement complexity during flight selection
+**General Metrics**:
 
-**Hotels:**
-- **selections**: Hotel bookings with distance constraint validation
-- **within_5km**: Whether hotel is within 5km of city center (constraint)
+| Metric | Description | Analysis Use |
+|--------|-------------|--------------|
+| **`session_id`** | Unique task session identifier | Data correlation |
+| **`total_actions`** | Count of all user actions | Activity level |
+| **`component_switches`** | Tab navigation log | Task switching behavior |
+| **`idle_periods`** | Inactivity >3 seconds | Hesitation, confusion |
 
-**Transportation:**
-- **selections**: Transportation mode chosen with price
+**Budget Management**:
 
-**Meetings:**
-- **drag_attempts**: Complete log of drag-and-drop attempts
-- **attempts**: Each drop attempt with validation result
-- **placement_duration_ms**: Total time to successfully place meeting
-- **final_slot**: Successfully placed time slot
+| Metric | Description | Analysis Use |
+|--------|-------------|--------------|
+| **`current_total`** | Final total cost (€) | Budget adherence |
+| **`updates`** | History of cost changes | Budget monitoring |
+| **`budget_overrun_events`** | Times exceeded €1,380 | Constraint violations |
+| **`cost_adjustment_actions`** | Corrections after overrun | Error recovery |
+| **`overrun_selection_counter`** | Selections while over budget | Risk-taking behavior |
 
-**Computed Signals:**
-- **rapid_selection_changes**: Count of rapid selection changes (≥3 selections within 5 seconds)
-- **mouse_entropy**: Calculated per component area (higher = more complex/erratic movement)
+**Component-Specific Tracking**:
+
+| Component | Hover Events | Selections | Constraints Validated |
+|-----------|--------------|------------|----------------------|
+| **Flights** | ✅ Duration logged | ✅ Time constraints | Arrival/departure rules |
+| **Hotels** | ✅ Duration logged | ✅ Distance constraint | Within 5km of center |
+| **Transportation** | ✅ Duration logged | ✅ Price tracking | N/A |
+| **Meetings** | N/A | ✅ Drag attempts | Conflict detection |
+
+**Mouse Entropy**: Calculated separately for each component area to measure complexity of interactions in different contexts.
+
+**Meeting Drag-and-Drop**:
+- **`drag_attempts`**: Complete log of all drag-and-drop attempts
+- **`attempts`**: Each drop attempt with validation result and reason for failure
+- **`placement_duration_ms`**: Total time to successfully place each meeting
+- **`valid`**: Whether attempted slot was valid or had conflicts
+
+**Constraint Validation**:
+- Flight `follows_rules`: Validates time constraints automatically
+- Hotel `within_5km`: Checks distance from city center
+- Meeting `valid`: Checks for scheduling conflicts
+
+**Cognitive Load Indicators**:
+- Multiple `budget_overrun_events` → difficulty tracking constraints
+- Long `idle_periods` → confusion or indecision
+- Many `component_switches` → task switching overhead
+- Failed `drag_attempts` → spatial reasoning difficulty
+- High `overrun_selection_counter` → ignoring constraints
 
 ---
 
@@ -457,34 +606,51 @@
 
 ### What is NASA-TLX?
 
-The **NASA Task Load Index (NASA-TLX)** is a widely-used, multidimensional assessment tool for measuring subjective workload. It provides an overall workload score based on a weighted average of ratings on six subscales.
+The **NASA Task Load Index (NASA-TLX)** is a validated, multidimensional assessment tool widely used in human factors research to measure **subjective workload**. 
 
-### Six Dimensions
+**Implementation**: We use the simplified NASA-TLX method with equal weighting (no pairwise comparisons).
 
-The questionnaire measures cognitive load across six dimensions:
+---
 
-1. **Mental Demand**: How much thinking, deciding, or remembering did the task require?
-2. **Physical Demand**: How much physical effort was involved? (Clicking, typing, mouse movement)
-3. **Temporal Demand**: How much time pressure did you feel due to the pace of the task?
-4. **Performance**: How successful do you think you were in accomplishing the task goals?
-5. **Effort**: How hard did you have to work to achieve your level of performance?
-6. **Frustration**: How insecure, discouraged, or annoyed did you feel during the task?
+### The Six Dimensions of Cognitive Load
 
-### Response Scale
+Each dimension is rated independently on a **5-point scale** (10, 30, 50, 70, 90):
 
-Each dimension is rated on a **5-point scale** with descriptive labels:
+| Dimension | Question | What It Measures |
+|-----------|----------|------------------|
+| **🧠 Mental Demand** | How much thinking, deciding, or remembering did the task require? | Cognitive processing requirements |
+| **💪 Physical Demand** | How much physical effort was involved? (clicking, typing, mouse) | Motor activity and physical strain |
+| **⏱️ Temporal Demand** | How much time pressure did you feel? | Perceived time constraints |
+| **✅ Performance** | How successful were you in accomplishing the task? | Self-assessed effectiveness |
+| **⚡ Effort** | How hard did you work to achieve your performance level? | Overall exertion |
+| **😤 Frustration** | How insecure, discouraged, or annoyed did you feel? | Emotional response |
 
-- **Score 10** (0-20 range): Very Low / Very Easy
-- **Score 30** (21-40 range): Low / Simple
-- **Score 50** (41-60 range): Moderate
-- **Score 70** (61-80 range): High / Challenging
-- **Score 90** (81-100 range): Very High / Extremely Demanding
+---
 
-### Question Order
+### Rating Scale
 
-Questions are **randomized** for each participant using the Fisher-Yates shuffle algorithm to prevent order effects.
+Each dimension uses descriptive labels for clarity:
 
-### NASA-TLX Response JSON Structure
+| Score | Range | Label | Interpretation |
+|-------|-------|-------|----------------|
+| **10** | 0-20 | Very Low / Very Easy | Minimal demand |
+| **30** | 21-40 | Low / Simple | Below average demand |
+| **50** | 41-60 | Moderate | Average demand |
+| **70** | 61-80 | High / Challenging | Above average demand |
+| **90** | 81-100 | Very High / Extremely Demanding | Maximum demand |
+
+---
+
+### Randomization
+
+Questions are **randomized for each participant** using the Fisher-Yates shuffle algorithm to prevent:
+- Order effects
+- Response bias
+- Learning effects across multiple questionnaires
+
+---
+
+### Data Structure
 
 ```json
 {
@@ -502,80 +668,140 @@ Questions are **randomized** for each participant using the Fisher-Yates shuffle
 }
 ```
 
-**Fields Explanation:**
-- **task_id**: Identifier of the task (e.g., "task_1_form", "task_2_form", "task_3_form")
-- **nasa_tlx_scores**: Object containing all six dimension scores (10, 30, 50, 70, or 90)
-- **raw_tlx_score**: Simple average of all six scores, rounded to 1 decimal place
-- **timestamp**: ISO 8601 timestamp of questionnaire submission
+#### Fields Explained
 
-### Scoring Calculation
+| Field | Description | Example Value |
+|-------|-------------|---------------|
+| **`task_id`** | Task identifier | `"task_1_form"`, `"task_2_form"`, `"task_3_form"` |
+| **`nasa_tlx_scores`** | Six dimension scores | Object with 6 properties (values: 10/30/50/70/90) |
+| **`raw_tlx_score`** | Average of all six scores | Range: 10-90, rounded to 1 decimal |
+| **`timestamp`** | Submission time | ISO 8601 format |
+
+#### Scoring Formula
 
 ```javascript
 raw_tlx_score = (mental_demand + physical_demand + temporal_demand + 
                  performance + effort + frustration) / 6
 ```
 
-This implementation uses the **simplified NASA-TLX** method (equal weighting) rather than the original weighted method with pairwise comparisons.
+**Example**: If all scores are 50, the `raw_tlx_score` = 50.0 (moderate workload)
+
+**Interpretation**:
+- **10-30**: Low cognitive load
+- **30-50**: Below-average to moderate load
+- **50-70**: Moderate to high load
+- **70-90**: High to very high load
+
 
 ---
 
 ## Data Storage & Flow
 
-### LocalStorage Keys
+### 💾 LocalStorage Keys
 
-**Task Data:**
-- `task_1_data`: Task 1 metrics (form entry)
-- `task_2_data`: Task 2 metrics (product exploration)
-- `task3_metrics_{sessionId}`: Task 3 metrics (travel planning) - uses unique session ID
+All data is initially stored in the browser's `localStorage` before final upload.
 
-**NASA-TLX Data:**
-- `nasa_tlx_task_1_form`: Individual Task 1 questionnaire response
-- `nasa_tlx_task_2_form`: Individual Task 2 questionnaire response
-- `nasa_tlx_task_3_form`: Individual Task 3 questionnaire response
-- `nasa_tlx_responses`: Aggregated array of all questionnaire responses
+#### Task Performance Data
 
-**Participant & Session:**
-- `participantId`: Anonymous participant identifier
-- `consentGiven`: Consent status (true/false)
-- `taskProgress`: Current task and completed tasks
+| Key | Content | When Saved |
+|-----|---------|------------|
+| `task_1_data` | Task 1 complete metrics | After Task 1 completion |
+| `task_2_data` | Task 2 complete metrics | After Task 2 completion |
+| `task3_metrics_{sessionId}` | Task 3 complete metrics | After Task 3 completion |
 
-**Upload Tracking (Deduplication):**
-- `submission_sent`: Flag to prevent duplicate aggregated uploads
-- `submission_docId`: Firestore document ID of aggregated submission
-- `task1_uploaded`: Flag to prevent duplicate Task 1 uploads
-- `task1_docId`: Firestore document ID of Task 1 submission
+#### NASA-TLX Responses
 
-### Data Flow Sequence
+| Key | Content | When Saved |
+|-----|---------|------------|
+| `nasa_tlx_task_1_form` | Task 1 questionnaire | After TLX #1 submission |
+| `nasa_tlx_task_2_form` | Task 2 questionnaire | After TLX #2 submission |
+| `nasa_tlx_task_3_form` | Task 3 questionnaire | After TLX #3 submission |
+| `nasa_tlx_responses` | Array of all TLX responses | After each TLX submission |
+
+#### Session Management
+
+| Key | Content | Purpose |
+|-----|---------|---------|
+| `participantId` | Anonymous participant ID | User identification |
+| `consentGiven` | Boolean | Consent tracking |
+| `taskProgress` | Current/completed tasks | Progress tracking |
+
+#### Upload Tracking (Deduplication)
+
+| Key | Content | Purpose |
+|-----|---------|---------|
+| `submission_sent` | Boolean flag | Prevent duplicate aggregated uploads |
+| `submission_docId` | Firestore document ID | Track aggregated submission |
+| `task1_uploaded` | Boolean flag | Prevent duplicate Task 1 uploads |
+| `task1_docId` | Firestore document ID | Track Task 1 submission |
+
+---
+
+### 🔄 Complete Data Flow Sequence
 
 ```
-1. User starts Task 1
-   └─> useTask1Logger.markStart() initializes timestamps
+┌──────────────────────────────────────────────────────────────┐
+│ TASK 1: FORM ENTRY                                           │
+├──────────────────────────────────────────────────────────────┤
+│ 1. User starts task                                          │
+│    └─> useTask1Logger.markStart()                           │
+│        └─> Initializes start timestamp                      │
+│                                                              │
+│ 2. User interacts with form                                  │
+│    └─> Field focus/blur/change events captured              │
+│    └─> Mouse and keyboard events logged (throttled)         │
+│    └─> Validation errors counted                            │
+│                                                              │
+│ 3. User completes task                                       │
+│    └─> useTask1Logger.markEnd()                             │
+│        └─> Calculates total duration                        │
+│    └─> useTask1Logger.saveToLocalStorage()                  │
+│        └─> Saves to 'task_1_data' key                       │
+├──────────────────────────────────────────────────────────────┤
+│ NASA-TLX QUESTIONNAIRE #1                                    │
+├──────────────────────────────────────────────────────────────┤
+│ 4. Questionnaire appears                                     │
+│    └─> 6 questions displayed (randomized order)             │
+│    └─> User rates each dimension (10/30/50/70/90)          │
+│    └─> On submit:                                            │
+│        └─> saveQuestionnaireResponse('task_1_form', scores) │
+│        └─> Saves to 'nasa_tlx_task_1_form'                  │
+│        └─> Appends to 'nasa_tlx_responses' array            │
+└──────────────────────────────────────────────────────────────┘
 
-2. User interacts with form
-   └─> Field focus/blur/change events logged
-   └─> Mouse and keyboard events captured
-   └─> Validation errors counted
+[Same pattern repeats for Task 2 and Task 3]
 
-3. User completes Task 1
-   └─> useTask1Logger.markEnd() calculates duration
-   └─> useTask1Logger.saveToLocalStorage() saves to 'task_1_data'
-
-4. NASA-TLX Questionnaire appears
-   └─> User answers 6 questions (randomized order)
-   └─> On submit: saveQuestionnaireResponse('task_1_form', scores)
-   └─> Saves to 'nasa_tlx_task_1_form' and 'nasa_tlx_responses' array
-
-5. Repeat steps 1-4 for Task 2 and Task 3
-
-6. User reaches Completion Page
-   └─> buildAggregatedStudyPayload() collects all data from localStorage
-   └─> sendAggregatedStudyData() uploads to Firestore 'study_responses' collection
-   └─> Sets 'submission_sent' flag to prevent duplicates
+┌──────────────────────────────────────────────────────────────┐
+│ COMPLETION PAGE: DATA UPLOAD                                 │
+├──────────────────────────────────────────────────────────────┤
+│ 1. User reaches completion page                              │
+│    └─> Check if 'submission_sent' is true                   │
+│        └─> If true: Skip upload (already done)              │
+│        └─> If false: Proceed with upload                    │
+│                                                              │
+│ 2. Build aggregated payload                                  │
+│    └─> buildAggregatedStudyPayload()                         │
+│        └─> Collects all task data from localStorage         │
+│        └─> Collects all NASA-TLX responses                  │
+│        └─> Adds metadata (participantId, timestamp)         │
+│                                                              │
+│ 3. Upload to Firestore                                       │
+│    └─> sendAggregatedStudyData(payload)                     │
+│        └─> Uploads to 'study_responses' collection          │
+│        └─> Returns document ID                              │
+│    └─> Set 'submission_sent' = true                         │
+│    └─> Set 'submission_docId' = returned ID                 │
+│                                                              │
+│ 4. Confirmation displayed to user                            │
+│    └─> Option to download personal data copy                │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Aggregated Payload Structure
+---
 
-When all tasks are complete, the following payload is sent to Firestore:
+### 📦 Aggregated Payload Structure
+
+When all tasks are complete, the following structure is uploaded to Firestore:
 
 ```json
 {
@@ -599,125 +825,423 @@ When all tasks are complete, the following payload is sent to Firestore:
 }
 ```
 
-### Firestore Collections
+#### Payload Structure Explanation
 
-**Collection: `study_responses`**
-- Contains aggregated data for all tasks and questionnaires per participant
-- One document per participant/session
-- Used for final analysis
+| Field | Description | Content |
+|-------|-------------|---------|
+| **`id`** | Unique document identifier | Auto-generated unique string |
+| **`participantId`** | Anonymous participant ID | E.g., `"anon_user_456"` |
+| **`timestamp`** | Upload time | ISO 8601 format |
+| **`task_metrics`** | All task performance data | Nested object with task_1, task_2, task_3 |
+| **`nasa_tlx_responses`** | All questionnaire responses | Array of 3 TLX objects |
+| **`meta`** | Application metadata | App name and version |
 
-**Collection: `task1`**
-- Optional collection for Task 1 specific analysis
-- Contains only Task 1 metrics
-- Uploaded separately via `sendTask1Metrics()`
+---
+
+### 🗄️ Firestore Collections
+
+#### Collection: `study_responses`
+
+**Purpose**: Complete participant data for analysis
+
+| Field | Content |
+|-------|---------|
+| **Documents** | One per participant/session |
+| **Structure** | Aggregated payload (shown above) |
+| **Use Case** | Primary data source for study analysis |
+
+#### Collection: `task1` (Optional)
+
+**Purpose**: Task 1 specific analysis
+
+| Field | Content |
+|-------|---------|
+| **Documents** | Task 1 metrics only |
+| **Upload Method** | `sendTask1Metrics()` |
+| **Use Case** | Isolated Task 1 research or A/B testing |
+
 
 ---
 
 ## Key Files Reference
 
-### Components
-- **`src/components/QuestionnaireModal.jsx`**: NASA-TLX UI implementation with 6 randomized questions
+### 📂 File Organization
 
-### Hooks (Loggers)
-- **`src/hooks/useTask1Logger.js`**: Task 1 metrics collection
-- **`src/hooks/useTask2Logger.js`**: Task 2 metrics collection
-- **`src/hooks/useTask3Logger.js`**: Task 3 metrics collection
+#### UI Components
 
-### Utilities
-- **`src/utils/tlx.js`**: NASA-TLX scoring, storage, and retrieval functions
-- **`src/utils/dataCollection.js`**: Aggregation and Firestore upload logic
-- **`src/utils/firebase.js`**: Firebase configuration and initialization
+| File | Purpose | Key Features |
+|------|---------|--------------|
+| [QuestionnaireModal.jsx](src/components/QuestionnaireModal.jsx) | NASA-TLX questionnaire UI | 6 questions, randomization, validation |
+| [CognitiveLoadGauge.jsx](src/components/CognitiveLoadGauge.jsx) | Real-time load visualization | Visual feedback during tasks |
+| [ExplanationBanner.jsx](src/components/ExplanationBanner.jsx) | Task instructions | Context for each task |
 
-### Context
-- **`src/contexts/TaskProgressContext.jsx`**: Orchestrates task flow and questionnaire triggering
+#### Data Collection Hooks
 
-### Pages
-- **`src/pages/Task1.jsx`**: Form entry task implementation
-- **`src/pages/Task2.jsx`**: Product exploration task implementation
-- **`src/pages/Task3.jsx`**: Travel planning task implementation
-- **`src/pages/CompletionPage.jsx`**: Final data upload and thank you page
+| File | Purpose | Tracks |
+|------|---------|--------|
+| [useTask1Logger.js](src/hooks/useTask1Logger.js) | Task 1 metrics | Form interactions, field navigation, validation |
+| [useTask2Logger.js](src/hooks/useTask2Logger.js) | Task 2 metrics | Filters, product hovers, decision patterns |
+| [useTask3Logger.js](src/hooks/useTask3Logger.js) | Task 3 metrics | Multi-component actions, budget, constraints |
+
+#### Utility Functions
+
+| File | Purpose | Functions |
+|------|---------|-----------|
+| [tlx.js](src/utils/tlx.js) | NASA-TLX operations | Scoring, storage, retrieval |
+| [dataCollection.js](src/utils/dataCollection.js) | Data aggregation & upload | Firestore integration |
+| [firebase.js](src/utils/firebase.js) | Firebase setup | Configuration, initialization |
+
+#### Context Providers
+
+| File | Purpose | Manages |
+|------|---------|---------|
+| [TaskProgressContext.jsx](src/contexts/TaskProgressContext.jsx) | Task orchestration | Flow control, questionnaire triggering |
+| [CognitiveLoadContext.jsx](src/contexts/CognitiveLoadContext.jsx) | Load tracking | Real-time cognitive load estimation |
+| [AuthContext.jsx](src/contexts/AuthContext.jsx) | Participant management | Anonymous authentication |
+
+#### Task Implementation Pages
+
+| File | Purpose | Task Type |
+|------|---------|-----------|
+| [Task1.jsx](src/pages/Task1.jsx) | Form entry task | Billing/shipping form |
+| [Task2.jsx](src/pages/Task2.jsx) | Product exploration | Filter & compare products |
+| [Task3.jsx](src/pages/Task3.jsx) | Travel planning | Multi-component with constraints |
+| [CompletionPage.jsx](src/pages/CompletionPage.jsx) | Study completion | Data upload & thank you |
 
 ---
 
 ## Usage for Researchers
 
-### Accessing Participant Data
+### 📊 Accessing Participant Data
 
-1. **From Firestore Console:**
-   - Navigate to `study_responses` collection
-   - Each document contains complete participant data
-   - Filter by timestamp or participantId
+#### Method 1: Firestore Console
 
-2. **Download from UI:**
-   - Participants can download their own data on the Completion Page
-   - JSON format with all metrics and questionnaire responses
+1. Navigate to Firebase Console → Firestore Database
+2. Open `study_responses` collection
+3. Each document = one participant's complete data
+4. Filter/query by:
+   - `timestamp`: Date range
+   - `participantId`: Specific participant
+   - `task_metrics.*.success`: Completion status
 
-### Analyzing Metrics
+#### Method 2: Participant Download
 
-**Task Performance:**
-- `total_time_ms`: Task completion time
-- `success`: Task completion status
-- `error_count`: Number of errors encountered
+- Participants can download their data as JSON from the Completion Page
+- Contains identical structure to Firestore document
+- Useful for transparency and participant data rights
 
-**Cognitive Load Indicators:**
-- NASA-TLX `raw_tlx_score`: Self-reported workload (0-100)
-- `mouse_entropy`: Movement complexity (higher = more cognitive load)
-- `rapid_hover_switches` / `rapid_selection_changes`: Decision uncertainty
-- `idle_periods`: Hesitation or confusion
+#### Method 3: Programmatic Export
 
-**Task-Specific Analysis:**
-- Task 1: Field navigation patterns, edit counts, backspace usage
-- Task 2: Filter strategy, product comparison behavior, decision time
-- Task 3: Budget management, constraint violation attempts, meeting scheduling efficiency
+```javascript
+// Example: Export all responses
+const snapshot = await db.collection('study_responses').get();
+const data = snapshot.docs.map(doc => doc.data());
+```
 
-### Privacy & Ethics
+---
 
-- All data is **anonymized** using generated participant IDs
-- No personally identifiable information (PII) is collected
-- Participants can download their data before submission
-- Data is used solely for research purposes
+### 🔬 Analyzing Metrics
+
+#### Performance Metrics
+
+| Metric | What It Measures | Analysis Approach |
+|--------|------------------|-------------------|
+| `total_time_ms` | Task completion speed | Mean, median, distribution |
+| `success` | Completion rate | Percentage by task |
+| `error_count` | Mistake frequency | Sum, average per task |
+
+#### Cognitive Load Indicators
+
+| Indicator | Signal | Interpretation |
+|-----------|--------|----------------|
+| **NASA-TLX Score** | Self-reported workload | Direct load measure |
+| **Mouse Entropy** | Movement complexity | Indirect load indicator |
+| **Idle Periods** | Hesitation count/duration | Confusion or decision difficulty |
+| **Rapid Changes** | Quick selection switches | Uncertainty, comparison difficulty |
+| **Edit/Backspace Count** | Typing corrections | Data entry difficulty |
+
+#### Task-Specific Analysis
+
+**Task 1 - Form Entry**:
+- `field_sequence`: Navigation strategy (linear vs. jumping)
+- `focus_time_ms` per field: Which fields are difficult
+- `backspace_count`: Typing accuracy by field
+- `shipping_method_changes`: Decision revision
+
+**Task 2 - Product Filtering**:
+- `filter_sequence`: Filter application strategy
+- `time_to_first_filter`: Initial planning time
+- `products_viewed`: Information gathering breadth
+- `rapid_hover_switches`: Comparison difficulty
+- `decision_time_ms`: Final decision duration
+
+**Task 3 - Travel Planning**:
+- `component_switches`: Task switching frequency
+- `budget_overrun_events`: Constraint tracking difficulty
+- `drag_attempts.attempts`: Spatial reasoning challenges
+- `idle_periods`: Multi-component coordination difficulty
+- Constraint violations: Rule comprehension
+
+---
+
+### 📈 Sample Analysis Questions
+
+#### Performance Analysis
+- Which task has the longest completion time?
+- What is the error rate by task?
+- How many participants violate budget constraints?
+
+#### Cognitive Load Analysis
+- Does NASA-TLX score correlate with task completion time?
+- Is mouse entropy higher in Task 3 (most complex)?
+- Do participants with more idle periods report higher frustration?
+
+#### Behavioral Pattern Analysis
+- What filter strategies are most common in Task 2?
+- Do rapid selection changes predict higher TLX scores?
+- How do constraint violations relate to budget management?
+
+---
+
+### 🔒 Privacy & Ethics
+
+#### Data Protection
+
+| Aspect | Implementation |
+|--------|---------------|
+| **Anonymization** | Generated participant IDs (no PII collected) |
+| **Consent** | Required before study starts |
+| **Transparency** | Participants can review data before upload |
+| **Data Access** | Participants can download their data |
+| **Storage** | Secure Firebase Firestore with access controls |
+
+#### Ethical Considerations
+
+- ✅ No personally identifiable information collected
+- ✅ Anonymous participant IDs only
+- ✅ Informed consent obtained before participation
+- ✅ Data used solely for research purposes
+- ✅ Participants can withdraw (opt-out before final upload)
+- ✅ Clear explanation of data collection in consent form
+
 
 ---
 
 ## Technical Notes
 
-### Deduplication Strategy
+### ⚙️ Implementation Details
 
-The app prevents duplicate uploads using localStorage flags:
-- `submission_sent`: Prevents re-uploading aggregated data
-- `task1_uploaded`: Prevents re-uploading Task 1 data
+#### Deduplication Strategy
 
-If a user refreshes or returns to the Completion Page, the app will not re-upload data.
+**Problem**: Users might refresh or return to the Completion Page, causing duplicate uploads.
 
-### Mouse Event Throttling
+**Solution**: localStorage flags prevent re-uploads
 
-- **Task 1 & 2**: Mousemove events throttled to 100ms intervals to reduce data volume
-- **Task 3**: Uses mouse sampling during specific component interactions
+| Flag | Purpose | Set When |
+|------|---------|----------|
+| `submission_sent` | Blocks aggregated data re-upload | After successful Firestore upload |
+| `submission_docId` | Stores Firestore document ID | After successful upload |
+| `task1_uploaded` | Blocks Task 1 specific re-upload | After Task 1 upload (if used) |
+| `task1_docId` | Stores Task 1 document ID | After Task 1 upload |
 
-### Data Size Limits
-
-- Task 3 arrays have safety limits (5000 items max) to prevent localStorage overflow
-- Mousemove data is sampled/throttled to balance granularity and storage
-
-### Error Handling
-
-- Parse errors in localStorage are caught and logged to `internal_errors` array
-- Failed Firestore uploads are caught and reported to user with retry option
-- Missing data fields default to null or empty arrays
-
----
-
-## Future Enhancements
-
-Potential additions for future versions:
-- Eye-tracking integration
-- Heart rate variability (HRV) monitoring
-- Screen recording integration
-- Real-time cognitive load estimation
-- A/B testing framework for UI variations
+**Logic Flow**:
+```javascript
+if (localStorage.getItem('submission_sent') === 'true') {
+  // Skip upload - already completed
+  return;
+}
+// Proceed with upload
+```
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** November 12, 2025  
-**Contact:** CogniViz Research Team
+#### Mouse Event Throttling
+
+**Challenge**: Mouse events fire at very high frequency (potentially hundreds per second), leading to:
+- Large data storage requirements
+- Potential localStorage overflow
+- Unnecessary granularity
+
+**Solution**: Throttling and sampling
+
+| Task | Method | Rate | Rationale |
+|------|--------|------|-----------|
+| **Task 1** | Throttle `mousemove` | 100ms intervals | Balance between movement capture and data size |
+| **Task 2** | Throttle `mousemove` | 100ms intervals | Adequate for entropy calculation |
+| **Task 3** | Component sampling | During interactions | Targeted capture per component |
+
+**Implementation Example**:
+```javascript
+let lastMouseMoveTime = 0;
+const THROTTLE_MS = 100;
+
+element.addEventListener('mousemove', (e) => {
+  const now = Date.now();
+  if (now - lastMouseMoveTime >= THROTTLE_MS) {
+    logMouseEvent(e);
+    lastMouseMoveTime = now;
+  }
+});
+```
+
+---
+
+#### Data Size Limits
+
+**LocalStorage Limits**: Browsers typically allow ~5-10MB per domain.
+
+**Safety Measures**:
+
+| Array Type | Max Items | Reason |
+|------------|-----------|--------|
+| `mouse_data` | 5000 | Prevent overflow in long sessions |
+| `hover_events` | 5000 | Limit for extensive exploration |
+| `drag_attempts` | 1000 | Reasonable upper bound |
+
+**Behavior**: When limits are reached, oldest items may be dropped or logging paused.
+
+---
+
+#### Error Handling
+
+**Parse Errors**:
+```javascript
+try {
+  const data = JSON.parse(localStorage.getItem('task_1_data'));
+} catch (error) {
+  // Log to internal_errors array
+  metrics.internal_errors.push({
+    type: 'parse_error',
+    message: error.message,
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+**Firestore Upload Failures**:
+```javascript
+try {
+  await db.collection('study_responses').add(payload);
+  localStorage.setItem('submission_sent', 'true');
+} catch (error) {
+  // Show user-friendly error with retry option
+  showUploadError(error);
+}
+```
+
+**Missing Data**:
+- Missing fields default to `null` or empty arrays `[]`
+- Partial data uploads are allowed (e.g., if Task 3 incomplete)
+- Validation checks before upload warn about incomplete data
+
+---
+
+#### Performance Optimizations
+
+| Optimization | Implementation | Benefit |
+|--------------|----------------|---------|
+| **Debounced saves** | Save to localStorage every 1 second max | Reduce write operations |
+| **Event batching** | Group events before logging | Fewer array operations |
+| **Lazy initialization** | Create loggers only when task starts | Reduce memory footprint |
+| **Compressed timestamps** | ISO 8601 strings instead of objects | Smaller JSON size |
+
+---
+
+### 🛠️ Known Limitations
+
+| Limitation | Impact | Workaround |
+|------------|--------|-----------|
+| **localStorage quota** | Large datasets may exceed 5-10MB | Throttling, array limits |
+| **Browser refresh** | Task progress lost if mid-task | TaskProgressContext saves state |
+| **No real-time sync** | Data upload only at completion | By design for performance |
+| **Single-session** | No cross-device continuation | Participant must complete in one session |
+| **No validation retry** | Failed constraint checks not retried | User must manually correct |
+
+---
+
+### 🔮 Future Enhancements
+
+**Potential additions for future versions**:
+
+#### Physiological Monitoring
+- **Eye-tracking**: Gaze patterns, fixation duration, saccades
+- **Heart Rate Variability (HRV)**: Physiological stress indicator
+- **EEG Integration**: Direct brain activity measurement
+
+#### Advanced Analytics
+- **Real-time cognitive load estimation**: ML-based prediction during tasks
+- **Adaptive task difficulty**: Adjust based on detected load
+- **Predictive failure detection**: Warn before errors occur
+
+#### Study Design Features
+- **A/B testing framework**: Compare UI variations
+- **Randomized task order**: Control for learning effects
+- **Longitudinal tracking**: Multi-session studies
+
+#### Technical Improvements
+- **Real-time data sync**: Upload during tasks (not just at end)
+- **Compressed storage**: Use compression for mouse data
+- **Video/screen recording**: Capture full session recordings
+- **Offline support**: Complete study without internet, sync later
+
+---
+
+## 📚 References & Resources
+
+### NASA-TLX Documentation
+- **Original Paper**: Hart, S. G., & Staveland, L. E. (1988). Development of NASA-TLX
+- **Simplified Method**: Used in this implementation (equal weighting, no pairwise comparison)
+
+### Cognitive Load Theory
+- Sweller, J. (1988). Cognitive load during problem solving
+- Paas, F., & van Merriënboer, J. J. G. (1994). Instructional control of cognitive load
+
+### Mouse Behavior Research
+- Freeman, J. B., & Ambady, N. (2010). MouseTracker: Software for studying real-time mental processing
+- Entropy calculations based on information theory (Shannon entropy)
+
+---
+
+## 📞 Contact & Support
+
+**Document Information**:
+- **Version**: 2.0  
+- **Last Updated**: February 13, 2026
+- **Maintained By**: CogniViz Research Team
+
+**For Questions**:
+- Technical issues: Review code comments and this documentation
+- Study design: Refer to consent form and task instructions
+- Data analysis: See "Usage for Researchers" section above
+
+---
+
+## Appendix: Quick Reference
+
+### Critical localStorage Keys
+```
+task_1_data                    → Task 1 metrics
+task_2_data                    → Task 2 metrics
+task3_metrics_{sessionId}      → Task 3 metrics
+nasa_tlx_responses             → All TLX responses
+submission_sent                → Upload flag
+```
+
+### Firestore Collections
+```
+study_responses/               → Primary data collection
+task1/                         → Optional Task 1 collection
+```
+
+### Key Metric Names
+```
+total_time_ms                  → Task duration
+raw_tlx_score                  → Subjective workload (10-90)
+mouse_entropy                  → Movement complexity
+rapid_hover_switches           → Decision uncertainty
+budget_overrun_events          → Constraint violations
+```
+
+---
+
+**End of Documentation**

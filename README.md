@@ -2,7 +2,6 @@
 
 <div align="center">
 
-<img src="assets/dashboard.svg" alt="CogniViz Preview" width="820"/>
 
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -220,7 +219,6 @@ Cognitive load UI design and control logic:
 ├── vite.config.js
 ├── public/
 ├── assets/
-│   └── dashboard.svg
 ├── scripts/
 │   └── task3_smoke_test.js
 ├── src/
